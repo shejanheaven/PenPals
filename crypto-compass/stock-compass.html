@@ -1,4 +1,4 @@
-<title>Crypto Compass</title>
+<title>Stock Compass</title>
 <style>
 /* Layout: one column of coin cards on the left, the selected coin's plan on the right; stacks on phones. */
 :root {
@@ -79,18 +79,18 @@ svg text { fill: var(--muted); font-size: 11px }
 <div class="wrap">
   <div class="top">
     <div>
-      <h1>Crypto Compass</h1>
-      <p class="sub">Live crypto prices from Crypto.com, with a plain-English buy / wait / sell call, a trade plan, and a check of how the app's recent calls turned out.</p>
+      <h1>Stock Compass</h1>
+      <p class="sub">Real stock prices and news from Alpha Vantage, with a plain-English buy / wait / sell call, a trade plan, and a check of how the app's recent calls turned out.</p>
     </div>
     <span class="live"><span class="dot" id="liveDot"></span><span id="liveText">Connecting…</span></span>
   </div>
-  <div class="note" id="banner">Calls are based on the last 50 days of real prices. No app can promise profits: plan to lose on 4–5 of every 10 trades, keep each loss small, and only trade money you can afford to lose.</div>
+  <div class="note" id="banner">Calls use the last 100 trading days of real prices plus recent news. Prices are from the latest market close (the free data plan updates once a day). No app can promise profits: plan to lose on 4–5 of every 10 trades, keep each loss small, and only trade money you can afford to lose.</div>
 
   <div class="grid">
     <div class="panel">
       <div class="tabs" role="tablist">
-        <button id="tabMain" class="on" role="tab" aria-selected="true">Main coins</button>
-        <button id="tabHot" role="tab" aria-selected="false">Hot movers</button>
+        <button id="tabMain" class="on" role="tab" aria-selected="true">Stocks</button>
+        <button id="tabHot" role="tab" aria-selected="false">News</button>
       </div>
       <div id="list"><div class="empty">Loading live prices…</div></div>
     </div>
@@ -99,14 +99,14 @@ svg text { fill: var(--muted); font-size: 11px }
 </div>
 
 <script>
-const SERVER = 'Crypto.com'
+const SERVER = 'Alpha Vantage MCP Server'
+const BENCH = 'SPY'
 const COINS = [
-  ['BTC', 'Bitcoin'], ['ETH', 'Ethereum'], ['SOL', 'Solana'], ['XRP', 'XRP'], ['DOGE', 'Dogecoin'],
-  ['ADA', 'Cardano'], ['AVAX', 'Avalanche'], ['LINK', 'Chainlink'], ['LTC', 'Litecoin'], ['DOT', 'Polkadot'],
-  ['SHIB', 'Shiba Inu'], ['PEPE', 'Pepe'], ['SUI', 'Sui'], ['BONK', 'Bonk'],
+  ['SPY', 'S&P 500 fund'], ['QQQ', 'Nasdaq-100 fund'], ['NVDA', 'NVIDIA'], ['MSFT', 'Microsoft'], ['AAPL', 'Apple'],
+  ['AMZN', 'Amazon'], ['GOOGL', 'Alphabet (Google)'], ['META', 'Meta'], ['TSLA', 'Tesla'],
 ]
-const S = { mcp: null, tickers: {}, candles: {}, errors: {}, sel: 'BTC', tab: 'main', movers: null, account: 10 }
-try { const a = +localStorage.getItem('cc.account'); if (a > 0) S.account = a } catch {}
+const S = { mcp: null, tickers: {}, candles: {}, errors: {}, sel: 'SPY', tab: 'main', movers: null, account: 100, news: null }
+try { const a = +localStorage.getItem('sc.account'); if (a > 0) S.account = a } catch {}
 
 // ---------- formatting ----------
 const $ = id => document.getElementById(id)
@@ -167,7 +167,7 @@ function scoreAt(bars, i, btcMood) {
     const ratio = (up + 1) / (dn + 1)
     f.push([clamp(Math.tanh(Math.log(ratio) * 1.5)), 0.15, ratio > 1.15 ? 'More trading on up days than down days: real buying behind it.' : ratio < 0.87 ? 'More trading on down days: sellers are more active.' : 'Buying and selling volume are balanced.'])
   }
-  if (btcMood != null) f.push([btcMood, 0.15, btcMood > 0 ? 'Bitcoin (which moves the whole crypto market) is trending up.' : 'Bitcoin (which moves the whole crypto market) is trending down. Most coins fall with it.'])
+  if (btcMood != null) f.push([btcMood, 0.15, btcMood > 0 ? 'The overall stock market (S&P 500) is trending up.' : 'The overall stock market (S&P 500) is trending down. Most stocks fall with it.'])
   const w = f.reduce((s, x) => s + x[1], 0)
   return { score: w ? f.reduce((s, x) => s + x[0] * x[1], 0) / w : 0, why: f, atr: a, price: p }
 }
@@ -175,7 +175,7 @@ const actionOf = s => s >= 0.45 ? ['Strong buy', 'b-good', '▲'] : s >= 0.15 ? 
 const isBuy = s => s >= 0.15, isSell = s => s <= -0.15
 
 function btcMoodAt(t) {
-  const b = S.candles.BTC
+  const b = S.candles[BENCH]
   if (!b) return null
   const idx = b.findIndex(x => x.t > t) - 1
   const i = idx < 0 ? b.length - 1 : idx
@@ -184,109 +184,122 @@ function btcMoodAt(t) {
   return c[i] > s[i] ? 0.6 : -0.6
 }
 
+function tickOf(sym) {
+  const b = S.candles[sym]
+  if (!b || b.length < 2) return null
+  return { last: b[b.length - 1].c, change: b[b.length - 1].c / b[b.length - 2].c - 1 }
+}
 function analyze(sym) {
   let bars = S.candles[sym]
   if (!bars || bars.length < 30) return null
-  const tk = S.tickers[sym]
+  const tk = null
   if (tk && tk.last) {
     bars = bars.slice()
     const last = { ...bars[bars.length - 1] }
     if (Math.abs(Math.log(tk.last / last.c)) < 0.3) { last.c = tk.last; last.h = Math.max(last.h, tk.last); last.l = Math.min(last.l, tk.last); bars[bars.length - 1] = last }
   }
   const n = bars.length
-  const now = scoreAt(bars, n - 1, sym === 'BTC' ? null : btcMoodAt(bars[n - 1].t))
+  const now = scoreAt(bars, n - 1, sym === BENCH ? null : btcMoodAt(bars[n - 1].t))
+  const ns = newsFor(sym)
+  if (ns) { now.why.push([ns.score, 0.1, ns.score > 0.15 ? `Recent news is mostly positive (${ns.n} articles).` : ns.score < -0.15 ? `Recent news is mostly negative (${ns.n} articles).` : `Recent news is mixed (${ns.n} articles).`]); const w = now.why.reduce((a, x) => a + x[1], 0); now.score = now.why.reduce((a, x) => a + x[0] * x[1], 0) / w }
   const calls = []
   for (const d of [1, 2, 3, 5, 7, 10, 14]) {
     const k = n - 1 - d
     if (k < 30) continue
-    const sc = scoreAt(bars, k, sym === 'BTC' ? null : btcMoodAt(bars[k].t)).score
+    const sc = scoreAt(bars, k, sym === BENCH ? null : btcMoodAt(bars[k].t)).score
     const ret = now.price / bars[k].c - 1
     calls.push({ d, t: bars[k].t, sc, then: bars[k].c, ret, right: isBuy(sc) ? ret > 0 : isSell(sc) ? ret < 0 : null })
   }
   const stop = now.price - 2 * now.atr, target = now.price + 3 * now.atr
-  return { ...now, bars, calls, stop, target, hold: 7 }
+  return { ...now, bars, calls, stop, target, hold: 10 }
 }
 
 // ---------- data ----------
-function parseBars(payload) {
-  const rows = payload && Array.isArray(payload.data) ? payload.data : []
-  return rows.map(r => ({ t: Date.parse(r.timestamp), o: +r.open, h: +r.high, l: +r.low, c: +r.close, v: +(r.volume_usd || r.volume || 0) }))
-    .filter(b => b.c > 0 && b.t).sort((a, b) => a.t - b.t)
+function parseBars(p) {
+  const ts = p && p['Time Series (Daily)']
+  if (!ts) return null
+  return Object.entries(ts).map(([d, r]) => ({ t: Date.parse(d + 'T20:00:00Z'), o: +r['1. open'], h: +r['2. high'], l: +r['3. low'], c: +r['4. close'], v: +r['5. volume'] }))
+    .filter(b => b.c > 0).sort((a, b) => a.t - b.t)
 }
-function parseTicker(p) {
-  const d = p && Array.isArray(p.data) ? p.data[0] : p
-  if (!d || !d.last) return null
-  return { last: +d.last, change: +d.change, high: +d.high, low: +d.low, vol: +d.volume_value, time: Date.parse(d.timestamp) || Date.now() }
-}
+function quotaMsg(p) { return p && (p.Note || p.Information || p['Error Message']) }
 function errText(e) {
   const c = e && e.code
-  if (c === 'server_not_connected' || c === 'needs_reauth') return 'Connect Crypto.com in claude.ai → Settings → Connectors to see live prices.'
-  if (c === 'not_in_manifest') return 'Live prices are switched off for this page. Allow Crypto.com when the page asks.'
-  if (c === 'server_unavailable' || c === 'upstream_error') return 'Crypto.com did not answer just now. Prices will retry automatically.'
-  if (c === 'tool_error') return 'Not traded on Crypto.com.'
+  if (c === 'server_not_connected' || c === 'needs_reauth') return 'Connect Alpha Vantage in claude.ai → Settings → Connectors to see real prices.'
+  if (c === 'not_in_manifest') return 'Real prices are switched off for this page. Allow Alpha Vantage when the page asks.'
+  if (c === 'server_unavailable' || c === 'upstream_error') return 'Alpha Vantage did not answer just now. Try Refresh in a minute.'
   return (e && e.message) || 'Could not load.'
 }
+// The free plan allows ~25 requests a day, so keep a copy for the day.
+const today = new Date().toISOString().slice(0, 10)
+let store = {}
+try { const c = JSON.parse(localStorage.getItem('sc.cache')); if (c && c.day === today) store = c } catch {}
+function save() { try { localStorage.setItem('sc.cache', JSON.stringify({ day: today, candles: S.candles, news: S.news })) } catch {} }
+if (store.candles) S.candles = store.candles
+if (store.news) S.news = store.news
 
-async function loadCandles(sym) {
+async function loadCandles(sym, force) {
+  if (S.candles[sym] && !force) return
   try {
-    const r = await S.mcp.callTool(SERVER, 'get_candlestick', { instrument_name: sym + '_USD', timeframe: '1D' }, { cache: { staleTime: 300000, gcTime: 3600000 } })
-    S.candles[sym] = parseBars(r.payload)
-    delete S.errors[sym]
+    const r = await S.mcp.callTool(SERVER, 'TIME_SERIES_DAILY', { symbol: sym, datatype: 'json', outputsize: 'compact' })
+    const bars = parseBars(r.payload)
+    if (bars && bars.length) { S.candles[sym] = bars; delete S.errors[sym]; save() }
+    else S.errors[sym] = quotaMsg(r.payload) ? 'Daily data limit reached on the free Alpha Vantage plan. It resets tomorrow.' : 'No price data for this symbol.'
   } catch (e) { S.errors[sym] = errText(e) }
   render()
 }
 
-function watchTicker(sym) {
-  S.mcp.watchTool(SERVER, 'get_ticker', { instrument_name: sym + '_USD' }, ev => {
-    if (ev.type === 'data') {
-      const t = parseTicker(ev.result.payload)
-      if (t) { S.tickers[sym] = t; S.lastTick = Date.now(); delete S.errors[sym] }
-    } else {
-      const c = ev.error.code
-      if (['needs_reauth', 'server_not_connected', 'blocked_by_policy', 'approval_required', 'not_in_manifest'].includes(c)) delete S.tickers[sym]
-      if (!S.tickers[sym]) S.errors[sym] = errText(ev.error)
-    }
-    scheduleRender()
-  }, { refetchInterval: 30000, cache: { staleTime: 20000 } })
-}
-
-async function loadMovers() {
-  S.movers = 'loading'; render()
+async function loadNews(force) {
+  if (S.news && !force) return
+  S.newsState = 'loading'; render()
   try {
-    const r = await S.mcp.callTool(SERVER, 'get_tickers', {}, { cache: { staleTime: 60000 } })
-    const rows = (r.payload && r.payload.data) || []
-    S.movers = rows.filter(d => /_USD$/.test(d.instrument_name) && +d.volume_value > 250000)
-      .map(d => ({ sym: d.instrument_name.replace('_USD', ''), last: +d.last, change: +d.change, vol: +d.volume_value }))
-      .sort((a, b) => b.change - a.change).slice(0, 25)
-  } catch (e) { S.movers = { error: errText(e) } }
+    const r = await S.mcp.callTool(SERVER, 'NEWS_SENTIMENT', { tickers: COINS.map(c => c[0]).filter(t => t !== 'SPY' && t !== 'QQQ').join(','), sort: 'LATEST', limit: 50 })
+    const feed = (r.payload && r.payload.feed) || []
+    if (!feed.length && quotaMsg(r.payload)) { S.newsState = 'Daily data limit reached on the free plan. News resets tomorrow.'; render(); return }
+    S.news = feed.slice(0, 60).map(f => ({
+      title: f.title, url: f.url, source: f.source, time: f.time_published,
+      label: f.overall_sentiment_label,
+      tickers: (Array.isArray(f.ticker_sentiment) ? f.ticker_sentiment : []).map(t => ({ t: t.ticker, s: +t.ticker_sentiment_score, rel: +t.relevance_score })),
+    }))
+    S.newsState = null; save()
+  } catch (e) { S.newsState = errText(e) }
   render()
 }
+
+function newsFor(sym) {
+  if (!S.news) return null
+  const hits = S.news.flatMap(n => n.tickers.filter(t => t.t === sym && t.rel >= 0.3))
+  if (!hits.length) return null
+  const avg = hits.reduce((a, h) => a + h.s, 0) / hits.length
+  return { score: clamp(avg * 3), n: hits.length }
+}
+const newsTime = t => { const m = /^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)/.exec(t || ''); return m ? Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : Date.now() }
 
 let rt = null
 function scheduleRender() { if (!rt) rt = setTimeout(() => { rt = null; render() }, 200) }
 
 // ---------- render ----------
 function render() {
-  const live = S.lastTick && Date.now() - S.lastTick < 90000
-  $('liveDot').className = 'dot' + (live ? ' on' : '')
-  $('liveText').textContent = live ? 'Live from Crypto.com · refreshes every 30s' : S.mcp ? 'Waiting for Crypto.com…' : 'Not connected'
+  const b = S.candles[BENCH], got = b && b.length
+  $('liveDot').className = 'dot' + (got ? ' on' : '')
+  $('liveText').textContent = got ? `Real prices · market close ${dateStr(b[b.length - 1].t)} · Alpha Vantage` : S.mcp ? 'Loading from Alpha Vantage…' : 'Not connected'
   renderList(); renderDetail()
 }
 
 function renderList() {
   const el = $('list')
-  if (!S.mcp) { el.innerHTML = '<div class="empty">Open this page on claude.ai with the Crypto.com connector turned on to see live prices.</div>'; return }
+  if (!S.mcp) { el.innerHTML = '<div class="empty">Open this page on claude.ai with the Alpha Vantage connector turned on to see real prices.</div>'; return }
   if (S.tab === 'hot') {
-    if (!S.movers || S.movers === 'loading') { el.innerHTML = '<div class="empty">Loading the biggest movers…</div>'; return }
-    if (S.movers.error) { el.innerHTML = `<div class="empty">${esc(S.movers.error)}</div>`; return }
-    el.innerHTML = `<p class="tiny muted" style="margin:0 4px 8px">Biggest 24h gainers on Crypto.com (only coins with $250k+ traded). Coins that jump this fast often crash just as fast. Never chase one with money you need.</p>` +
-      S.movers.map(m => `<button class="coin${S.sel === m.sym ? ' sel' : ''}" data-sym="${esc(m.sym)}"><span class="sym">${esc(m.sym)}</span><span class="num">${money(m.last)}</span><span class="tiny muted">$${(m.vol / 1e6).toFixed(1)}M traded</span><span>${chg(m.change)}</span></button>`).join('')
+    if (S.newsState === 'loading' || (!S.news && !S.newsState)) { el.innerHTML = '<div class="empty">Loading the latest news…</div>'; return }
+    if (!S.news) { el.innerHTML = `<div class="empty">${esc(S.newsState)}</div>`; return }
+    el.innerHTML = S.news.slice(0, 30).map(n => `<a href="${esc(n.url)}" target="_blank" rel="noopener noreferrer" class="coin" style="text-decoration:none;display:block">
+      <span class="badge ${/Bullish/.test(n.label) ? 'b-good' : /Bearish/.test(n.label) ? 'b-bad' : 'b-hold'}">${esc(n.label || 'Neutral')}</span>
+      <span style="display:block;font-weight:600;margin-top:4px">${esc(n.title)}</span>
+      <span class="tiny muted">${esc(n.source)} · ${dateStr(newsTime(n.time))} · ${esc(n.tickers.filter(t => t.rel >= 0.3).map(t => t.t).join(', '))}</span></a>`).join('')
     return
   }
   el.innerHTML = COINS.map(([sym, name]) => {
-    const t = S.tickers[sym], a = analyze(sym)
+    const a = analyze(sym), t = tickOf(sym)
     const act = a ? actionOf(a.score) : null
-    if (!t && S.errors[sym] === 'Not traded on Crypto.com.') return ''
     return `<button class="coin${S.sel === sym ? ' sel' : ''}" data-sym="${sym}">
       <span><span class="sym">${sym}</span> <span class="tiny muted">${name}</span></span>
       <span class="num">${t ? money(t.last) : '…'}</span>
@@ -297,13 +310,13 @@ function renderList() {
 
 function renderDetail() {
   const el = $('detail'), sym = S.sel
-  if (!S.mcp) { el.innerHTML = '<div class="empty">Live data needs the Crypto.com connector.</div>'; return }
-  if (!S.candles[sym] && !S.errors[sym]) { el.innerHTML = `<div class="empty">Loading ${esc(sym)}…</div>`; if (!S.loading?.[sym]) { (S.loading ||= {})[sym] = 1; loadCandles(sym); if (!S.tickers[sym]) watchTicker(sym) } return }
+  if (!S.mcp) { el.innerHTML = '<div class="empty">Real data needs the Alpha Vantage connector.</div>'; return }
+  if (!S.candles[sym] && !S.errors[sym]) { el.innerHTML = `<div class="empty">Loading ${esc(sym)}…</div>`; return }
   if (S.errors[sym] && !S.candles[sym]) { el.innerHTML = `<div class="empty">${esc(S.errors[sym])}</div>`; return }
   const a = analyze(sym)
-  const t = S.tickers[sym]
+  const t = tickOf(sym)
   const name = (COINS.find(c => c[0] === sym) || [sym, sym])[1]
-  if (!a) { el.innerHTML = `<div class="empty">Not enough price history for ${esc(sym)} yet (needs 30+ days). New coins are the riskiest of all.</div>`; return }
+  if (!a) { el.innerHTML = `<div class="empty">Not enough price history for ${esc(sym)} yet.</div>`; return }
   const act = actionOf(a.score)
   const units = (S.account * 0.25) / a.price
   const riskUnits = (S.account * 0.02) / (a.price - a.stop)
@@ -314,7 +327,7 @@ function renderDetail() {
     <div class="hero">
       <div><h2 style="margin:0">${esc(name)} <span class="muted" style="font-weight:500">${esc(sym)}</span></h2>
         <div class="price num">${money(t ? t.last : a.price)}</div>
-        <div class="small">${t ? chg(t.change) + ' <span class="muted">last 24h</span>' : ''}</div></div>
+        <div class="small">${t ? chg(t.change) + ' <span class="muted">on the last trading day</span>' : ''}</div></div>
       <span class="badge ${act[1]}" style="font-size:1rem;padding:6px 14px">${act[2]} ${act[0]}</span>
     </div>
     ${chart(a)}
@@ -327,7 +340,7 @@ function renderDetail() {
           <div class="tile"><div class="l">3. Take profit</div><div class="v num good">${money(a.target)}</div><div class="s">${pct(a.target / a.price - 1)}</div></div>
           <div class="tile"><div class="l">4. Sell by</div><div class="v">${dateStr(Date.now() + a.hold * 864e5)}</div><div class="s">about ${a.hold} days</div></div>
         </div>
-        <div class="callout">💵 With <b>$${S.account.toLocaleString()}</b>, put in about <b>${cash(buyDollars)}</b> (${buyUnits.toPrecision(4)} ${esc(sym)}). If the stop hits you lose about <span class="bad">${cash(buyUnits * (a.price - a.stop))}</span>; if the target hits you make about <span class="good">${cash(buyUnits * (a.target - a.price))}</span>.
+        <div class="callout">💵 With <b>$${S.account.toLocaleString()}</b>, put in about <b>${cash(buyDollars)}</b> (${buyUnits.toPrecision(3)} shares; most apps let you buy part of a share). If the stop hits you lose about <span class="bad">${cash(buyUnits * (a.price - a.stop))}</span>; if the target hits you make about <span class="good">${cash(buyUnits * (a.target - a.price))}</span>.
           <div class="field"><label for="acct" class="small">Money you trade with ($)</label><input id="acct" type="number" min="1" step="1" value="${S.account}"></div></div>`
       : isSell(a.score) ? `<p class="small">The signals point down. <b>If you own ${esc(sym)}</b>, consider selling, or set a stop-loss at ${money(a.price - 1 * a.atr)}. <b>If you don't own it, don't buy now.</b></p>`
       : `<p class="small">No clear edge right now: the signals disagree. <b>Wait</b> and check back tomorrow. Not trading is often the best trade.</p>`}
@@ -339,21 +352,17 @@ function renderDetail() {
       ${a.calls.map(c => { const ac = actionOf(c.sc); return `<tr><td>${c.d === 1 ? 'Yesterday' : c.d + ' days ago'}<div class="tiny muted">${dateStr(c.t)}</div></td><td><span class="badge ${ac[1]}">${ac[2]} ${ac[0]}</span></td><td class="r">${money(c.then)}</td><td class="r">${chg(c.ret)}</td><td>${c.right == null ? '<span class="muted">—</span>' : c.right ? '<span class="good">✓ Right</span>' : '<span class="bad">✗ Wrong</span>'}</td></tr>` }).join('')}
       </tbody></table></div></div>
     <div><h2>How to buy ${esc(sym)} step by step</h2>
-      <h3>Crypto.com app</h3><ol class="steps">
-        <li>Open the <b>Crypto.com</b> app → tap <span class="kbd">Trade</span> → search <span class="kbd">${esc(sym)}</span>.</li>
-        <li>Tap <span class="kbd">Buy</span>. For lower fees, use the <b>Exchange</b> (Pro) view and choose a <b>Limit</b> order at <b>${money(a.price)}</b>.</li>
-        <li>After it fills, set a <b>Stop-loss</b> at <b>${money(a.stop)}</b> and a <b>Take-profit</b> at <b>${money(a.target)}</b> (if offered), or set price alerts at both.</li></ol>
-      <h3>Coinbase</h3><ol class="steps">
-        <li>Switch to <b>Advanced</b> trading (the simple Buy button costs 1–4% in fees).</li>
-        <li>Pair <span class="kbd">${esc(sym)}-USD</span> → <b>Buy</b> → <b>Limit</b> at ${money(a.price)}.</li>
-        <li>After it fills: <b>Sell → Stop limit</b>, stop ${money(a.stop)}, limit ${money(a.stop * 0.995)}.</li></ol>
-      <h3>Kraken Pro</h3><ol class="steps">
-        <li>Search <span class="kbd">${esc(sym)}/USD</span> → <b>Buy → Limit</b> at ${money(a.price)}.</li>
-        <li>Turn on <b>Take profit / Stop loss</b>: take profit ${money(a.target)}, stop loss ${money(a.stop)}. Kraken places both when your buy fills.</li></ol>
-      <p class="tiny muted" style="margin-top:8px">Coins you see only on DEX apps (pump.fun, Uniswap) aren't listed here. Most brand-new coins are rug pulls or can't be sold. Stick to coins on big exchanges.</p>
+      <p class="small muted">Stock market hours: Mon–Fri, 9:30am–4pm Eastern. Place orders after 9:45am, once the opening rush settles.</p>
+      <h3>Robinhood</h3><ol class="steps">
+        <li>Search <span class="kbd">${esc(sym)}</span> → <span class="kbd">Trade</span> → <span class="kbd">Buy</span>.</li>
+        <li>Order type: <b>Limit order</b>, price <b>${money(a.price)}</b>, amount about ${cash(buyDollars)}. Time in force: <b>Good for day</b>. Swipe up to submit.</li>
+        <li>When it fills: <span class="kbd">Trade</span> → <span class="kbd">Sell</span> → <b>Stop loss order</b> at <b>${money(a.stop)}</b>, Good till canceled. Set a price alert 🔔 at ${money(a.target)} to take profit.</li></ol>
+      <h3>Fidelity</h3><ol class="steps">
+        <li>Search <span class="kbd">${esc(sym)}</span> → <b>Trade → Buy → Limit</b> at ${money(a.price)}.</li>
+        <li>After it fills, on fidelity.com: <b>Trade → Conditional → OCO</b>. Sell <b>Limit ${money(a.target)}</b> + Sell <b>Stop ${money(a.stop)}</b>, both GTC. When one fills, the other cancels.</li></ol>
     </div>`
   const inp = $('acct')
-  if (inp) inp.addEventListener('change', () => { S.account = Math.max(1, +inp.value || 10); try { localStorage.setItem('cc.account', S.account) } catch {} ; render() })
+  if (inp) inp.addEventListener('change', () => { S.account = Math.max(1, +inp.value || 100); try { localStorage.setItem('sc.account', S.account) } catch {} ; render() })
 }
 
 function chart(a) {
@@ -364,7 +373,7 @@ function chart(a) {
   const path = arr => arr.map((v, i) => v == null ? '' : `${i && arr[i - 1] != null ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('')
   const ticks = [lo + (hi - lo) * 0.1, (lo + hi) / 2, hi - (hi - lo) * 0.1]
   const line = (v, col, label) => `<line x1="${P.l}" x2="${W - P.r}" y1="${y(v)}" y2="${y(v)}" stroke="${col}" stroke-dasharray="4 4" stroke-width="1.2"/><text x="${W - P.r + 4}" y="${y(v) + 4}" style="fill:${col}">${label}</text>`
-  return `<div><div class="tiny muted" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:4px"><span><span style="display:inline-block;width:14px;height:2px;background:var(--s1);vertical-align:middle"></span> Price, last ${b.length} days</span><span><span style="display:inline-block;width:14px;height:2px;background:var(--s2);vertical-align:middle"></span> 20-day average</span></div>
+  return `<div><div class="tiny muted" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:4px"><span><span style="display:inline-block;width:14px;height:2px;background:var(--s1);vertical-align:middle"></span> Price, last ${b.length} trading days</span><span><span style="display:inline-block;width:14px;height:2px;background:var(--s2);vertical-align:middle"></span> 20-day average</span></div>
     <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Price over the last ${b.length} days">
       ${ticks.map(v => `<line x1="${P.l}" x2="${W - P.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/>`).join('')}
       ${isBuy(a.score) ? line(a.target, 'var(--good)', 'Target') + line(a.stop, 'var(--bad)', 'Stop') : ticks.map(v => `<text x="${W - P.r + 4}" y="${y(v) + 4}">${money(v)}</text>`).join('')}
@@ -377,18 +386,18 @@ function chart(a) {
 
 // ---------- wiring ----------
 $('list').addEventListener('click', e => { const b = e.target.closest('[data-sym]'); if (b) { S.sel = b.dataset.sym; render(); if (innerWidth < 820) $('detail').scrollIntoView({ behavior: 'smooth' }) } })
-function setTab(t) { S.tab = t; $('tabMain').className = t === 'main' ? 'on' : ''; $('tabHot').className = t === 'hot' ? 'on' : ''; $('tabMain').setAttribute('aria-selected', t === 'main'); $('tabHot').setAttribute('aria-selected', t === 'hot'); if (t === 'hot' && !S.movers && S.mcp) loadMovers(); render() }
+function setTab(t) { S.tab = t; $('tabMain').className = t === 'main' ? 'on' : ''; $('tabHot').className = t === 'hot' ? 'on' : ''; $('tabMain').setAttribute('aria-selected', t === 'main'); $('tabHot').setAttribute('aria-selected', t === 'hot'); if (t === 'hot' && !S.news && S.mcp) loadNews(); render() }
 $('tabMain').addEventListener('click', () => setTab('main'))
 $('tabHot').addEventListener('click', () => setTab('hot'))
-setInterval(render, 30000)
+
 
 ;(async () => {
   render()
   const mcp = window.claude && await window.claude.use('mcp').catch(() => null)
   if (!mcp) { render(); return }
   S.mcp = mcp
-  await loadCandles('BTC')
-  COINS.forEach(([sym]) => watchTicker(sym))
-  for (const [sym] of COINS.slice(1)) await loadCandles(sym)
+  await loadCandles(BENCH)
+  for (const [sym] of COINS) await loadCandles(sym)
+  loadNews()
 })()
 </script>
