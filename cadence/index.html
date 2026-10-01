@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Cadence</title>
+    <meta name="description" content="A mindful planner for your days, weeks, months and year — with goals, gentle reminders and reflection." />
+    <meta name="theme-color" content="#f5f3ee" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Cadence" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <style>
+      /* First paint before CSS loads: no white flash in dark mode. */
+      html { background: #f5f3ee; }
+      @media (prefers-color-scheme: dark) { html { background: #0f1112; } }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>Cadence needs JavaScript to run.</noscript>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
