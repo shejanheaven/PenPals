@@ -38,6 +38,16 @@ the next one if a service fails.
 
 ## Setup (Windows, about 5 minutes)
 
+**Fastest way:** open **PowerShell** and paste this one line. It installs everything
+into `Desktop\Islamic Shorts App`, picks a free image source, and makes the first
+three videos:
+
+```powershell
+irm https://raw.githubusercontent.com/shejanheaven/PenPals/refs/heads/claude/compassionate-ramanujan-7hzji4/islamic-shorts/install-and-run.ps1 | iex
+```
+
+Or do it step by step:
+
 1. Install **Python 3.11 or newer** from https://www.python.org/downloads/ and tick
    **"Add python.exe to PATH"**.
 2. Double-click **`setup.bat`**. It installs everything, including FFmpeg, and creates
