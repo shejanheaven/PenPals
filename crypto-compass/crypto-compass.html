@@ -1,0 +1,393 @@
+<title>Crypto Compass</title>
+<style>
+/* Layout: one column of coin cards on the left, the selected coin's plan on the right; stacks on phones. */
+:root {
+  --bg: #f6f7f4; --surface: #ffffff; --surface-2: #eef0ea; --line: rgba(20, 30, 20, .1);
+  --fg: #111511; --fg-2: #4b524b; --muted: #7b827b;
+  --accent: #2a78d6; --accent-wash: rgba(42, 120, 214, .1);
+  --good: #0a8a0a; --good-wash: rgba(12, 163, 12, .12); --bad: #c23030; --bad-wash: rgba(208, 59, 59, .1);
+  --warn: #8a5a00; --warn-wash: rgba(250, 178, 25, .18);
+  --s1: #2a78d6; --s2: #eb6834;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e100e; --surface: #181b18; --surface-2: #222622; --line: rgba(255,255,255,.1);
+  --fg: #f4f6f2; --fg-2: #c3c8bf; --muted: #8f968c;
+  --accent: #3987e5; --accent-wash: rgba(57,135,229,.16);
+  --good: #3fcf3f; --good-wash: rgba(12,163,12,.2); --bad: #f08080; --bad-wash: rgba(208,59,59,.2);
+  --warn: #fab219; --warn-wash: rgba(250,178,25,.14); --s1: #3987e5; --s2: #d95926; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e100e; --surface: #181b18; --surface-2: #222622; --line: rgba(255,255,255,.1);
+  --fg: #f4f6f2; --fg-2: #c3c8bf; --muted: #8f968c;
+  --accent: #3987e5; --accent-wash: rgba(57,135,229,.16);
+  --good: #3fcf3f; --good-wash: rgba(12,163,12,.2); --bad: #f08080; --bad-wash: rgba(208,59,59,.2);
+  --warn: #fab219; --warn-wash: rgba(250,178,25,.14); --s1: #3987e5; --s2: #d95926; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--font); margin: 0 }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 40px }
+h1 { font-size: 1.5rem; margin: 0; letter-spacing: -.01em; text-wrap: balance }
+h2 { font-size: 1.05rem; margin: 0 0 10px }
+h3 { font-size: .95rem; margin: 16px 0 6px }
+p { margin: 0 }
+.sub { color: var(--fg-2); margin-top: 4px; max-width: 70ch }
+.muted { color: var(--muted) } .small { font-size: .85rem } .tiny { font-size: .76rem }
+.good { color: var(--good) } .bad { color: var(--bad) }
+.num { font-variant-numeric: tabular-nums }
+.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap }
+.live { display: inline-flex; align-items: center; gap: 6px; font-size: .82rem; color: var(--fg-2) }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted) }
+.dot.on { background: var(--good); box-shadow: 0 0 0 3px var(--good-wash) }
+.note { margin-top: 14px; padding: 10px 14px; border-radius: 12px; background: var(--warn-wash); font-size: .88rem }
+.note.err { background: var(--bad-wash) }
+.grid { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 18px; margin-top: 18px; align-items: start }
+@media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr) } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0 }
+.tabs { display: flex; gap: 4px; background: var(--surface-2); padding: 3px; border-radius: 10px; margin-bottom: 10px }
+.tabs button { flex: 1; border: 0; background: none; padding: 6px; border-radius: 8px; font: inherit; font-size: .86rem; color: var(--fg-2); cursor: pointer }
+.tabs button.on { background: var(--surface); color: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,.12) }
+.coin { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; width: 100%; text-align: left; border: 0; background: none; color: inherit; font: inherit; padding: 10px; border-radius: 10px; cursor: pointer }
+.coin:hover { background: var(--surface-2) } .coin.sel { background: var(--accent-wash) }
+.coin:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.sym { font-weight: 700 }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: .76rem; font-weight: 700; white-space: nowrap }
+.b-good { background: var(--good-wash); color: var(--good) } .b-bad { background: var(--bad-wash); color: var(--bad) }
+.b-hold { background: var(--surface-2); color: var(--fg-2) } .b-warn { background: var(--warn-wash); color: var(--warn) }
+.hero { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-end }
+.price { font-size: 2.2rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.1 }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px }
+@media (max-width: 560px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+.tile { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; min-width: 0 }
+.tile .l { font-size: .76rem; color: var(--fg-2) } .tile .v { font-size: 1.15rem; font-weight: 650 } .tile .s { font-size: .74rem; color: var(--muted) }
+.callout { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; font-size: .9rem; margin-top: 10px }
+.why { list-style: none; padding: 0; margin: 0 }
+.why li { display: grid; grid-template-columns: 22px 1fr; gap: 6px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: .9rem; color: var(--fg-2) }
+.why li:last-child { border-bottom: 0 }
+table { width: 100%; border-collapse: collapse; font-size: .86rem }
+th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line) }
+td { padding: 8px; border-bottom: 1px solid var(--line) } tr:last-child td { border-bottom: 0 }
+td.r, th.r { text-align: right; font-variant-numeric: tabular-nums }
+.scroll { overflow-x: auto }
+ol.steps { padding-left: 1.2em; margin: 6px 0 0 } ol.steps li { margin: 6px 0; color: var(--fg-2) } ol.steps b { color: var(--fg) }
+.kbd { background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 0 5px; font-weight: 600; font-size: .88em }
+.field { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap }
+.field input { width: 110px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit }
+svg text { fill: var(--muted); font-size: 11px }
+.stack > * + * { margin-top: 16px }
+.empty { padding: 30px 10px; text-align: center; color: var(--muted) }
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>Crypto Compass</h1>
+      <p class="sub">Live crypto prices from Crypto.com, with a plain-English buy / wait / sell call, a trade plan, and a check of how the app's recent calls turned out.</p>
+    </div>
+    <span class="live"><span class="dot" id="liveDot"></span><span id="liveText">Connecting…</span></span>
+  </div>
+  <div class="note" id="banner">Calls are based on the last 50 days of real prices. No app can promise profits: plan to lose on 4–5 of every 10 trades, keep each loss small, and only trade money you can afford to lose.</div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="tabs" role="tablist">
+        <button id="tabMain" class="on" role="tab" aria-selected="true">Main coins</button>
+        <button id="tabHot" role="tab" aria-selected="false">Hot movers</button>
+      </div>
+      <div id="list"><div class="empty">Loading live prices…</div></div>
+    </div>
+    <div class="panel stack" id="detail"><div class="empty">Pick a coin to see its plan.</div></div>
+  </div>
+</div>
+
+<script>
+const SERVER = 'Crypto.com'
+const COINS = [
+  ['BTC', 'Bitcoin'], ['ETH', 'Ethereum'], ['SOL', 'Solana'], ['XRP', 'XRP'], ['DOGE', 'Dogecoin'],
+  ['ADA', 'Cardano'], ['AVAX', 'Avalanche'], ['LINK', 'Chainlink'], ['LTC', 'Litecoin'], ['DOT', 'Polkadot'],
+  ['SHIB', 'Shiba Inu'], ['PEPE', 'Pepe'], ['SUI', 'Sui'], ['BONK', 'Bonk'],
+]
+const S = { mcp: null, tickers: {}, candles: {}, errors: {}, sel: 'BTC', tab: 'main', movers: null, account: 10 }
+try { const a = +localStorage.getItem('cc.account'); if (a > 0) S.account = a } catch {}
+
+// ---------- formatting ----------
+const $ = id => document.getElementById(id)
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+function money(p) {
+  if (p == null || !isFinite(p)) return '—'
+  const a = Math.abs(p), d = a >= 1 ? 2 : a >= 0.01 ? 4 : a >= 0.0001 ? 6 : 8
+  return '$' + p.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
+}
+const pct = (v, sign = true) => v == null || !isFinite(v) ? '—' : `${v < 0 ? '−' : sign && v > 0 ? '+' : ''}${Math.abs(v * 100).toFixed(1)}%`
+const chg = v => `<span class="${v > 0 ? 'good' : v < 0 ? 'bad' : 'muted'} num">${v > 0 ? '▲ ' : v < 0 ? '▼ ' : ''}${pct(v)}</span>`
+const dateStr = t => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+// ---------- indicators ----------
+function sma(a, n) { return a.map((_, i) => i < n - 1 ? null : a.slice(i - n + 1, i + 1).reduce((s, x) => s + x, 0) / n) }
+function ema(a, n) { const o = Array(a.length).fill(null); if (a.length < n) return o; let p = a.slice(0, n).reduce((s, x) => s + x, 0) / n; o[n - 1] = p; const k = 2 / (n + 1); for (let i = n; i < a.length; i++) { p = a[i] * k + p * (1 - k); o[i] = p } return o }
+function rsi(c, n = 14) { const o = Array(c.length).fill(null); if (c.length <= n) return o; let g = 0, l = 0; for (let i = 1; i <= n; i++) { const d = c[i] - c[i - 1]; d > 0 ? g += d : l -= d } g /= n; l /= n; o[n] = l ? 100 - 100 / (1 + g / l) : 100; for (let i = n + 1; i < c.length; i++) { const d = c[i] - c[i - 1]; g = (g * (n - 1) + Math.max(d, 0)) / n; l = (l * (n - 1) + Math.max(-d, 0)) / n; o[i] = l ? 100 - 100 / (1 + g / l) : 100 } return o }
+function atr(b, n = 14) { const tr = b.map((x, i) => i ? Math.max(x.h - x.l, Math.abs(x.h - b[i - 1].c), Math.abs(x.l - b[i - 1].c)) : x.h - x.l); const o = Array(b.length).fill(null); if (b.length <= n) return o; let p = tr.slice(1, n + 1).reduce((s, x) => s + x, 0) / n; o[n] = p; for (let i = n + 1; i < b.length; i++) { p = (p * (n - 1) + tr[i]) / n; o[i] = p } return o }
+const clamp = (x, a = -1, b = 1) => Math.max(a, Math.min(b, x))
+
+// Score the coin using only bars[0..i]. Returns {score, why[]}.
+function scoreAt(bars, i, btcMood) {
+  const c = bars.slice(0, i + 1).map(b => b.c)
+  const n = c.length, p = c[n - 1]
+  const s20 = sma(c, 20), s50 = sma(c, 50), r = rsi(c), m12 = ema(c, 12), m26 = ema(c, 26)
+  const macd = c.map((_, k) => m12[k] != null && m26[k] != null ? m12[k] - m26[k] : null)
+  const st = macd.findIndex(v => v != null), sig = Array(n).fill(null)
+  if (st >= 0) ema(macd.slice(st), 9).forEach((v, k) => sig[st + k] = v)
+  const hist = macd.map((v, k) => v != null && sig[k] != null ? v - sig[k] : null)
+  const a = atr(bars.slice(0, i + 1))[n - 1] || p * 0.03
+  const f = []
+  if (s20[n - 1] != null) {
+    let s = p > s20[n - 1] ? 0.4 : -0.4
+    if (s20[n - 6]) s += clamp((s20[n - 1] / s20[n - 6] - 1) * 15, -0.3, 0.3)
+    if (s50[n - 1] != null) s += p > s50[n - 1] ? 0.3 : -0.3
+    f.push([clamp(s), 0.3, p > s20[n - 1] ? `Uptrend: price is above its 20-day average${s50[n - 1] != null ? (p > s50[n - 1] ? ' and its 50-day average' : ', but below its 50-day average') : ''}.` : `Downtrend: price is below its 20-day average${s50[n - 1] != null && p < s50[n - 1] ? ' and its 50-day average' : ''}.`])
+  }
+  if (hist[n - 1] != null && n > 21) {
+    const roc = p / c[n - 21] - 1
+    const s = 0.6 * Math.tanh(hist[n - 1] / (0.15 * a)) + 0.4 * Math.tanh(roc / 0.2)
+    const rising = hist[n - 2] != null && hist[n - 1] > hist[n - 2]
+    f.push([clamp(s), 0.25, `${roc >= 0 ? 'Up' : 'Down'} ${pct(Math.abs(roc), false)} over 20 days; momentum is ${hist[n - 1] > 0 ? (rising ? 'building' : 'positive but fading') : (rising ? 'negative but improving' : 'negative and getting worse')}.`])
+  }
+  if (r[n - 1] != null) {
+    const v = r[n - 1], up = s20[n - 1] != null && p > s20[n - 1]
+    let s, t
+    if (v < 30) { s = 0.6; t = 'oversold (fell fast); bounces are common from here' }
+    else if (v < 45) { s = up ? 0.3 : -0.1; t = up ? 'a dip inside an uptrend' : 'weak' }
+    else if (v < 62) { s = 0.15; t = 'healthy' }
+    else if (v < 72) { s = -0.1; t = 'getting hot' }
+    else { s = -0.6; t = 'overbought (ran up fast); pullbacks are common' }
+    f.push([s, 0.15, `RSI ${v.toFixed(0)}: ${t}.`])
+  }
+  if (n >= 21) {
+    let up = 0, dn = 0
+    for (let k = n - 20; k < n; k++) { const b = bars[k]; if (b.c > bars[k - 1].c) up += b.v; else if (b.c < bars[k - 1].c) dn += b.v }
+    const ratio = (up + 1) / (dn + 1)
+    f.push([clamp(Math.tanh(Math.log(ratio) * 1.5)), 0.15, ratio > 1.15 ? 'More trading on up days than down days: real buying behind it.' : ratio < 0.87 ? 'More trading on down days: sellers are more active.' : 'Buying and selling volume are balanced.'])
+  }
+  if (btcMood != null) f.push([btcMood, 0.15, btcMood > 0 ? 'Bitcoin (which moves the whole crypto market) is trending up.' : 'Bitcoin (which moves the whole crypto market) is trending down. Most coins fall with it.'])
+  const w = f.reduce((s, x) => s + x[1], 0)
+  return { score: w ? f.reduce((s, x) => s + x[0] * x[1], 0) / w : 0, why: f, atr: a, price: p }
+}
+const actionOf = s => s >= 0.45 ? ['Strong buy', 'b-good', '▲'] : s >= 0.15 ? ['Buy', 'b-good', '▲'] : s <= -0.45 ? ['Strong sell', 'b-bad', '▼'] : s <= -0.15 ? ['Sell / avoid', 'b-bad', '▼'] : ['Wait', 'b-hold', '■']
+const isBuy = s => s >= 0.15, isSell = s => s <= -0.15
+
+function btcMoodAt(t) {
+  const b = S.candles.BTC
+  if (!b) return null
+  const idx = b.findIndex(x => x.t > t) - 1
+  const i = idx < 0 ? b.length - 1 : idx
+  if (i < 19) return null
+  const c = b.slice(0, i + 1).map(x => x.c), s = sma(c, 20)
+  return c[i] > s[i] ? 0.6 : -0.6
+}
+
+function analyze(sym) {
+  let bars = S.candles[sym]
+  if (!bars || bars.length < 30) return null
+  const tk = S.tickers[sym]
+  if (tk && tk.last) {
+    bars = bars.slice()
+    const last = { ...bars[bars.length - 1] }
+    if (Math.abs(Math.log(tk.last / last.c)) < 0.3) { last.c = tk.last; last.h = Math.max(last.h, tk.last); last.l = Math.min(last.l, tk.last); bars[bars.length - 1] = last }
+  }
+  const n = bars.length
+  const now = scoreAt(bars, n - 1, sym === 'BTC' ? null : btcMoodAt(bars[n - 1].t))
+  const calls = []
+  for (const d of [1, 2, 3, 5, 7, 10, 14]) {
+    const k = n - 1 - d
+    if (k < 30) continue
+    const sc = scoreAt(bars, k, sym === 'BTC' ? null : btcMoodAt(bars[k].t)).score
+    const ret = now.price / bars[k].c - 1
+    calls.push({ d, t: bars[k].t, sc, then: bars[k].c, ret, right: isBuy(sc) ? ret > 0 : isSell(sc) ? ret < 0 : null })
+  }
+  const stop = now.price - 2 * now.atr, target = now.price + 3 * now.atr
+  return { ...now, bars, calls, stop, target, hold: 7 }
+}
+
+// ---------- data ----------
+function parseBars(payload) {
+  const rows = payload && Array.isArray(payload.data) ? payload.data : []
+  return rows.map(r => ({ t: Date.parse(r.timestamp), o: +r.open, h: +r.high, l: +r.low, c: +r.close, v: +(r.volume_usd || r.volume || 0) }))
+    .filter(b => b.c > 0 && b.t).sort((a, b) => a.t - b.t)
+}
+function parseTicker(p) {
+  const d = p && Array.isArray(p.data) ? p.data[0] : p
+  if (!d || !d.last) return null
+  return { last: +d.last, change: +d.change, high: +d.high, low: +d.low, vol: +d.volume_value, time: Date.parse(d.timestamp) || Date.now() }
+}
+function errText(e) {
+  const c = e && e.code
+  if (c === 'server_not_connected' || c === 'needs_reauth') return 'Connect Crypto.com in claude.ai → Settings → Connectors to see live prices.'
+  if (c === 'not_in_manifest') return 'Live prices are switched off for this page. Allow Crypto.com when the page asks.'
+  if (c === 'server_unavailable' || c === 'upstream_error') return 'Crypto.com did not answer just now. Prices will retry automatically.'
+  if (c === 'tool_error') return 'Not traded on Crypto.com.'
+  return (e && e.message) || 'Could not load.'
+}
+
+async function loadCandles(sym) {
+  try {
+    const r = await S.mcp.callTool(SERVER, 'get_candlestick', { instrument_name: sym + '_USD', timeframe: '1D' }, { cache: { staleTime: 300000, gcTime: 3600000 } })
+    S.candles[sym] = parseBars(r.payload)
+    delete S.errors[sym]
+  } catch (e) { S.errors[sym] = errText(e) }
+  render()
+}
+
+function watchTicker(sym) {
+  S.mcp.watchTool(SERVER, 'get_ticker', { instrument_name: sym + '_USD' }, ev => {
+    if (ev.type === 'data') {
+      const t = parseTicker(ev.result.payload)
+      if (t) { S.tickers[sym] = t; S.lastTick = Date.now(); delete S.errors[sym] }
+    } else {
+      const c = ev.error.code
+      if (['needs_reauth', 'server_not_connected', 'blocked_by_policy', 'approval_required', 'not_in_manifest'].includes(c)) delete S.tickers[sym]
+      if (!S.tickers[sym]) S.errors[sym] = errText(ev.error)
+    }
+    scheduleRender()
+  }, { refetchInterval: 30000, cache: { staleTime: 20000 } })
+}
+
+async function loadMovers() {
+  S.movers = 'loading'; render()
+  try {
+    const r = await S.mcp.callTool(SERVER, 'get_tickers', {}, { cache: { staleTime: 60000 } })
+    const rows = (r.payload && r.payload.data) || []
+    S.movers = rows.filter(d => /_USD$/.test(d.instrument_name) && +d.volume_value > 250000)
+      .map(d => ({ sym: d.instrument_name.replace('_USD', ''), last: +d.last, change: +d.change, vol: +d.volume_value }))
+      .sort((a, b) => b.change - a.change).slice(0, 25)
+  } catch (e) { S.movers = { error: errText(e) } }
+  render()
+}
+
+let rt = null
+function scheduleRender() { if (!rt) rt = setTimeout(() => { rt = null; render() }, 200) }
+
+// ---------- render ----------
+function render() {
+  const live = S.lastTick && Date.now() - S.lastTick < 90000
+  $('liveDot').className = 'dot' + (live ? ' on' : '')
+  $('liveText').textContent = live ? 'Live from Crypto.com · refreshes every 30s' : S.mcp ? 'Waiting for Crypto.com…' : 'Not connected'
+  renderList(); renderDetail()
+}
+
+function renderList() {
+  const el = $('list')
+  if (!S.mcp) { el.innerHTML = '<div class="empty">Open this page on claude.ai with the Crypto.com connector turned on to see live prices.</div>'; return }
+  if (S.tab === 'hot') {
+    if (!S.movers || S.movers === 'loading') { el.innerHTML = '<div class="empty">Loading the biggest movers…</div>'; return }
+    if (S.movers.error) { el.innerHTML = `<div class="empty">${esc(S.movers.error)}</div>`; return }
+    el.innerHTML = `<p class="tiny muted" style="margin:0 4px 8px">Biggest 24h gainers on Crypto.com (only coins with $250k+ traded). Coins that jump this fast often crash just as fast. Never chase one with money you need.</p>` +
+      S.movers.map(m => `<button class="coin${S.sel === m.sym ? ' sel' : ''}" data-sym="${esc(m.sym)}"><span class="sym">${esc(m.sym)}</span><span class="num">${money(m.last)}</span><span class="tiny muted">$${(m.vol / 1e6).toFixed(1)}M traded</span><span>${chg(m.change)}</span></button>`).join('')
+    return
+  }
+  el.innerHTML = COINS.map(([sym, name]) => {
+    const t = S.tickers[sym], a = analyze(sym)
+    const act = a ? actionOf(a.score) : null
+    if (!t && S.errors[sym] === 'Not traded on Crypto.com.') return ''
+    return `<button class="coin${S.sel === sym ? ' sel' : ''}" data-sym="${sym}">
+      <span><span class="sym">${sym}</span> <span class="tiny muted">${name}</span></span>
+      <span class="num">${t ? money(t.last) : '…'}</span>
+      <span>${act ? `<span class="badge ${act[1]}">${act[2]} ${act[0]}</span>` : '<span class="tiny muted">loading…</span>'}</span>
+      <span class="small">${t ? chg(t.change) : ''}</span></button>`
+  }).join('')
+}
+
+function renderDetail() {
+  const el = $('detail'), sym = S.sel
+  if (!S.mcp) { el.innerHTML = '<div class="empty">Live data needs the Crypto.com connector.</div>'; return }
+  if (!S.candles[sym] && !S.errors[sym]) { el.innerHTML = `<div class="empty">Loading ${esc(sym)}…</div>`; if (!S.loading?.[sym]) { (S.loading ||= {})[sym] = 1; loadCandles(sym); if (!S.tickers[sym]) watchTicker(sym) } return }
+  if (S.errors[sym] && !S.candles[sym]) { el.innerHTML = `<div class="empty">${esc(S.errors[sym])}</div>`; return }
+  const a = analyze(sym)
+  const t = S.tickers[sym]
+  const name = (COINS.find(c => c[0] === sym) || [sym, sym])[1]
+  if (!a) { el.innerHTML = `<div class="empty">Not enough price history for ${esc(sym)} yet (needs 30+ days). New coins are the riskiest of all.</div>`; return }
+  const act = actionOf(a.score)
+  const units = (S.account * 0.25) / a.price
+  const riskUnits = (S.account * 0.02) / (a.price - a.stop)
+  const buyUnits = Math.min(units, riskUnits)
+  const buyDollars = buyUnits * a.price
+  const right = a.calls.filter(c => c.right != null), hits = right.filter(c => c.right).length
+  el.innerHTML = `
+    <div class="hero">
+      <div><h2 style="margin:0">${esc(name)} <span class="muted" style="font-weight:500">${esc(sym)}</span></h2>
+        <div class="price num">${money(t ? t.last : a.price)}</div>
+        <div class="small">${t ? chg(t.change) + ' <span class="muted">last 24h</span>' : ''}</div></div>
+      <span class="badge ${act[1]}" style="font-size:1rem;padding:6px 14px">${act[2]} ${act[0]}</span>
+    </div>
+    ${chart(a)}
+    <div>
+      <h2>What to do</h2>
+      ${isBuy(a.score) ? `
+        <div class="tiles">
+          <div class="tile"><div class="l">1. Buy at (limit)</div><div class="v num">${money(a.price)}</div></div>
+          <div class="tile"><div class="l">2. Stop-loss</div><div class="v num bad">${money(a.stop)}</div><div class="s">${pct(a.stop / a.price - 1)}</div></div>
+          <div class="tile"><div class="l">3. Take profit</div><div class="v num good">${money(a.target)}</div><div class="s">${pct(a.target / a.price - 1)}</div></div>
+          <div class="tile"><div class="l">4. Sell by</div><div class="v">${dateStr(Date.now() + a.hold * 864e5)}</div><div class="s">about ${a.hold} days</div></div>
+        </div>
+        <div class="callout">💵 With <b>$${S.account.toLocaleString()}</b>, put in about <b>${money(buyDollars)}</b> (${buyUnits.toPrecision(4)} ${esc(sym)}). If the stop hits you lose about <span class="bad">${money(buyUnits * (a.price - a.stop))}</span>; if the target hits you make about <span class="good">${money(buyUnits * (a.target - a.price))}</span>.
+          <div class="field"><label for="acct" class="small">Money you trade with ($)</label><input id="acct" type="number" min="1" step="1" value="${S.account}"></div></div>`
+      : isSell(a.score) ? `<p class="small">The signals point down. <b>If you own ${esc(sym)}</b>, consider selling, or set a stop-loss at ${money(a.price - 1 * a.atr)}. <b>If you don't own it, don't buy now.</b></p>`
+      : `<p class="small">No clear edge right now: the signals disagree. <b>Wait</b> and check back tomorrow. Not trading is often the best trade.</p>`}
+    </div>
+    <div><h2>Why</h2><ul class="why">${a.why.map(([s, , txt]) => `<li><span class="${s > 0.1 ? 'good' : s < -0.1 ? 'bad' : 'muted'}">${s > 0.1 ? '▲' : s < -0.1 ? '▼' : '■'}</span><span>${esc(txt)}</span></li>`).join('')}</ul></div>
+    <div><h2>Was the app right lately?</h2>
+      <p class="small muted" style="margin-bottom:6px">What the app would have said on each day (using only the prices known that day), compared with the price now. ${right.length ? `<b class="${hits / right.length >= 0.5 ? 'good' : 'bad'}">${hits} of ${right.length}</b> buy/sell calls were right.` : ''}</p>
+      <div class="scroll"><table><thead><tr><th>When</th><th>Said</th><th class="r">Price then</th><th class="r">Since</th><th>Result</th></tr></thead><tbody>
+      ${a.calls.map(c => { const ac = actionOf(c.sc); return `<tr><td>${c.d === 1 ? 'Yesterday' : c.d + ' days ago'}<div class="tiny muted">${dateStr(c.t)}</div></td><td><span class="badge ${ac[1]}">${ac[2]} ${ac[0]}</span></td><td class="r">${money(c.then)}</td><td class="r">${chg(c.ret)}</td><td>${c.right == null ? '<span class="muted">—</span>' : c.right ? '<span class="good">✓ Right</span>' : '<span class="bad">✗ Wrong</span>'}</td></tr>` }).join('')}
+      </tbody></table></div></div>
+    <div><h2>How to buy ${esc(sym)} step by step</h2>
+      <h3>Crypto.com app</h3><ol class="steps">
+        <li>Open the <b>Crypto.com</b> app → tap <span class="kbd">Trade</span> → search <span class="kbd">${esc(sym)}</span>.</li>
+        <li>Tap <span class="kbd">Buy</span>. For lower fees, use the <b>Exchange</b> (Pro) view and choose a <b>Limit</b> order at <b>${money(a.price)}</b>.</li>
+        <li>After it fills, set a <b>Stop-loss</b> at <b>${money(a.stop)}</b> and a <b>Take-profit</b> at <b>${money(a.target)}</b> (if offered), or set price alerts at both.</li></ol>
+      <h3>Coinbase</h3><ol class="steps">
+        <li>Switch to <b>Advanced</b> trading (the simple Buy button costs 1–4% in fees).</li>
+        <li>Pair <span class="kbd">${esc(sym)}-USD</span> → <b>Buy</b> → <b>Limit</b> at ${money(a.price)}.</li>
+        <li>After it fills: <b>Sell → Stop limit</b>, stop ${money(a.stop)}, limit ${money(a.stop * 0.995)}.</li></ol>
+      <h3>Kraken Pro</h3><ol class="steps">
+        <li>Search <span class="kbd">${esc(sym)}/USD</span> → <b>Buy → Limit</b> at ${money(a.price)}.</li>
+        <li>Turn on <b>Take profit / Stop loss</b>: take profit ${money(a.target)}, stop loss ${money(a.stop)}. Kraken places both when your buy fills.</li></ol>
+      <p class="tiny muted" style="margin-top:8px">Coins you see only on DEX apps (pump.fun, Uniswap) aren't listed here. Most brand-new coins are rug pulls or can't be sold. Stick to coins on big exchanges.</p>
+    </div>`
+  const inp = $('acct')
+  if (inp) inp.addEventListener('change', () => { S.account = Math.max(1, +inp.value || 10); try { localStorage.setItem('cc.account', S.account) } catch {} ; render() })
+}
+
+function chart(a) {
+  const b = a.bars, W = 640, H = 200, P = { l: 8, r: 70, t: 10, b: 22 }
+  const c = b.map(x => x.c), s20 = sma(c, 20)
+  const lo = Math.min(...c, a.stop) * 0.99, hi = Math.max(...c, a.target) * 1.01
+  const x = i => P.l + (i / (b.length - 1)) * (W - P.l - P.r), y = v => P.t + (1 - (v - lo) / (hi - lo)) * (H - P.t - P.b)
+  const path = arr => arr.map((v, i) => v == null ? '' : `${i && arr[i - 1] != null ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('')
+  const ticks = [lo + (hi - lo) * 0.1, (lo + hi) / 2, hi - (hi - lo) * 0.1]
+  const line = (v, col, label) => `<line x1="${P.l}" x2="${W - P.r}" y1="${y(v)}" y2="${y(v)}" stroke="${col}" stroke-dasharray="4 4" stroke-width="1.2"/><text x="${W - P.r + 4}" y="${y(v) + 4}" style="fill:${col}">${label}</text>`
+  return `<div><div class="tiny muted" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:4px"><span><span style="display:inline-block;width:14px;height:2px;background:var(--s1);vertical-align:middle"></span> Price, last ${b.length} days</span><span><span style="display:inline-block;width:14px;height:2px;background:var(--s2);vertical-align:middle"></span> 20-day average</span></div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Price over the last ${b.length} days">
+      ${ticks.map(v => `<line x1="${P.l}" x2="${W - P.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/>`).join('')}
+      ${isBuy(a.score) ? line(a.target, 'var(--good)', 'Target') + line(a.stop, 'var(--bad)', 'Stop') : ticks.map(v => `<text x="${W - P.r + 4}" y="${y(v) + 4}">${money(v)}</text>`).join('')}
+      <path d="${path(s20)}" fill="none" stroke="var(--s2)" stroke-width="2"/>
+      <path d="${path(c)}" fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="${x(b.length - 1)}" cy="${y(c[c.length - 1])}" r="4.5" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/>
+      <text x="${P.l}" y="${H - 4}">${dateStr(b[0].t)}</text><text x="${W - P.r}" y="${H - 4}" text-anchor="end">${dateStr(b[b.length - 1].t)}</text>
+    </svg></div>`
+}
+
+// ---------- wiring ----------
+$('list').addEventListener('click', e => { const b = e.target.closest('[data-sym]'); if (b) { S.sel = b.dataset.sym; render(); if (innerWidth < 820) $('detail').scrollIntoView({ behavior: 'smooth' }) } })
+function setTab(t) { S.tab = t; $('tabMain').className = t === 'main' ? 'on' : ''; $('tabHot').className = t === 'hot' ? 'on' : ''; $('tabMain').setAttribute('aria-selected', t === 'main'); $('tabHot').setAttribute('aria-selected', t === 'hot'); if (t === 'hot' && !S.movers && S.mcp) loadMovers(); render() }
+$('tabMain').addEventListener('click', () => setTab('main'))
+$('tabHot').addEventListener('click', () => setTab('hot'))
+setInterval(render, 30000)
+
+;(async () => {
+  render()
+  const mcp = window.claude && await window.claude.use('mcp').catch(() => null)
+  if (!mcp) { render(); return }
+  S.mcp = mcp
+  await loadCandles('BTC')
+  COINS.forEach(([sym]) => watchTicker(sym))
+  for (const [sym] of COINS.slice(1)) await loadCandles(sym)
+})()
+</script>
