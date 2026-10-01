@@ -1,0 +1,388 @@
+{
+  "videos": [
+    {
+      "title": "They Slept for 309 Years",
+      "topic": "The People of the Cave (Surah Al-Kahf)",
+      "hook": "A group of young men fell asleep in a cave, and woke up three hundred years later.",
+      "script": "A group of young men fell asleep in a cave, and woke up three hundred years later. This is not a legend someone invented. It is in the Quran, in Surah Al-Kahf. They were young believers living in a city that worshipped idols. To protect their faith, they fled into a cave and begged their Lord for mercy. And Allah sealed their ears in a deep sleep. The Quran describes the scene in detail. When the sun rose, it turned away from their cave. When it set, it passed them by. Anyone who looked at them would think they were awake. Their bodies were turned from side to side, while their dog lay stretched out at the entrance. When they finally woke, they thought they had slept a day, or part of a day. One of them went into the city with a silver coin, into a world that had moved on without them. The Quran says they stayed three hundred years, and added nine. Some scholars have noticed that three hundred solar years is almost exactly three hundred and nine lunar years. Three centuries passed outside. Inside the cave, it felt like a single day.",
+      "accuracy_note": "Quran, Surah Al-Kahf 18:9-26 (the flight, the sleep, the sun turning away, the dog, the silver coin, '300 years and added nine'). The solar/lunar-year observation (300 solar years = about 309 lunar years) is a later scholarly observation, labeled as such in the script.",
+      "caption": "They closed their eyes for one night... and opened them three centuries later. Did you know this story is in the Quran?",
+      "hashtags": [
+        "#Islam",
+        "#Quran",
+        "#SurahAlKahf",
+        "#PeopleOfTheCave",
+        "#IslamicStories",
+        "#Muslim"
+      ],
+      "continuity": "Seven-ish young believers in plain undyed wool robes and simple head cloths; a slender sand-colored dog; a rocky mountain cave above an ancient walled city of temples and statues; warm golden light versus deep blue shadow.",
+      "style": "fresco",
+      "scenes": [
+        {
+          "text": "A group of young men fell asleep in a cave,",
+          "visual": "Establishing mystery: a cave high in the mountains at night.",
+          "prompt": "A dark cave mouth high in a rugged mountain at night, a faint warm golden glow coming from deep inside, stars above, mist drifting around the rocks, mysterious and silent, cave centered in the middle third",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "and woke up three hundred years later.",
+          "visual": "The passage of centuries: the same cave, overgrown and ancient.",
+          "prompt": "The same mountain cave entrance now overgrown with centuries of vines, roots and moss, crumbled stones and drifting dust, a shaft of dawn light falling across the entrance, sense of immense time passed",
+          "motion": "zoom_out"
+        },
+        {
+          "text": "This is not a legend someone invented. It is in the Quran, in Surah Al-Kahf.",
+          "visual": "The source: an ancient Quran manuscript.",
+          "prompt": "An ancient illuminated Quran manuscript open on a carved wooden stand inside a quiet mosque niche, an oil lamp casting warm light on the pages, ornamental gold borders, dust in the air, reverent stillness",
+          "motion": "pan_down"
+        },
+        {
+          "text": "They were young believers living in a city that worshipped idols.",
+          "visual": "The idol-worshipping city and the young believers turning away from it.",
+          "prompt": "An ancient walled city with temples and towering stone statues of false gods, crowds bowing before the statues, and a small group of young men in plain wool robes walking away from the temple steps, seen from behind",
+          "motion": "pan_right"
+        },
+        {
+          "text": "To protect their faith, they fled into a cave",
+          "visual": "The flight by night up the mountain.",
+          "prompt": "A small group of young men in plain robes climbing a narrow rocky mountain path at night toward a cave, seen from behind, a slender sand-colored dog following them, moonlight and long shadows, the city lights far below",
+          "motion": "pan_up"
+        },
+        {
+          "text": "and begged their Lord for mercy.",
+          "visual": "Prayer inside the cave.",
+          "prompt": "Inside a dark rock cave, young men kneeling with their hands raised in prayer, seen from behind, a single soft beam of golden divine light falling on them from above, tears and devotion, deep shadows",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "And Allah sealed their ears in a deep sleep.",
+          "visual": "The miraculous sleep.",
+          "prompt": "The young men asleep on the cave floor wrapped in their wool cloaks, peaceful faces, a soft golden haze filling the cave like a protecting veil, utter calm and silence",
+          "motion": "pan_left"
+        },
+        {
+          "text": "The Quran describes the scene in detail. When the sun rose, it turned away from their cave.",
+          "visual": "Sunrise light sweeping past the cave without entering.",
+          "prompt": "Sunrise over a mountain range, golden sunbeams sweeping across the cliff face but bending away from a cave opening that stays in cool blue shadow, a miraculous play of light, wide view",
+          "motion": "pan_right"
+        },
+        {
+          "text": "When it set, it passed them by.",
+          "visual": "Sunset light passing the cave.",
+          "prompt": "Sunset over the mountains, warm orange light sliding across the rock face and passing beside the dark cave entrance without touching it, long purple shadows",
+          "motion": "zoom_out"
+        },
+        {
+          "text": "Anyone who looked at them would think they were awake.",
+          "visual": "The eerie stillness that would frighten an onlooker.",
+          "prompt": "Inside the dim cave, the sleepers lying in an eerie lifelike stillness as if awake, a frightened traveler's silhouette at the cave entrance stepping back in awe, cold moonlight behind him",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "Their bodies were turned from side to side,",
+          "visual": "Divine care for the sleepers.",
+          "prompt": "The young sleepers lying on their sides on woven mats in the cave, gently cared for, faint golden light moving over them like a guardian presence, serene and holy",
+          "motion": "pan_down"
+        },
+        {
+          "text": "while their dog lay stretched out at the entrance.",
+          "visual": "The loyal dog guarding the cave.",
+          "prompt": "A slender sand-colored dog lying at the cave threshold with its forelegs stretched out, head raised, loyally guarding the entrance, moonlight on its fur, the dark cave behind",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "When they finally woke, they thought they had slept a day, or part of a day.",
+          "visual": "Waking up, confused.",
+          "prompt": "The young men sitting up in the cave, stretching and looking at one another in confusion, morning light pouring through the entrance, dust swirling in the beams",
+          "motion": "pan_up"
+        },
+        {
+          "text": "One of them went into the city with a silver coin,",
+          "visual": "The old silver coin.",
+          "prompt": "Close-up of an ancient tarnished silver coin resting in an open palm, worn engravings of an old emperor, warm light, dust particles, the rest of the scene softly blurred",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "into a world that had moved on without them.",
+          "visual": "A transformed city that no longer knows them.",
+          "prompt": "A young man in old-fashioned wool robes standing at the gate of a transformed ancient city, seen from behind, new grand buildings and unfamiliar crowds in different clothing staring at him, a sense of displacement",
+          "motion": "pan_left"
+        },
+        {
+          "text": "The Quran says they stayed three hundred years, and added nine.",
+          "visual": "Centuries passing over the cave.",
+          "prompt": "Star trails wheeling over a mountain cave at night, the sun and moon arcing across the sky in many positions at once, seasons changing on the mountainside, the passage of centuries",
+          "motion": "pan_up"
+        },
+        {
+          "text": "Some scholars have noticed that three hundred solar years is almost exactly three hundred and nine lunar years.",
+          "visual": "Sun and moon: solar vs lunar years.",
+          "prompt": "A golden sun and a silver crescent moon side by side above the mountains, an ancient brass astrolabe and astronomy manuscript on a scholar's desk in the foreground, candlelight, wonder",
+          "motion": "zoom_out"
+        },
+        {
+          "text": "Three centuries passed outside. Inside the cave, it felt like a single day.",
+          "visual": "Powerful ending: time outside vs peace inside.",
+          "prompt": "The cave interior bathed in calm golden divine light while outside the entrance the world blurs through the seasons and centuries, the faithful dog at the threshold, profound peace, a powerful final image",
+          "motion": "zoom_out"
+        }
+      ]
+    },
+    {
+      "title": "The Angel Who Filled the Sky",
+      "topic": "Jibril's true form",
+      "hook": "The Prophet Muhammad, peace be upon him, saw the angel Jibril in his true form only twice.",
+      "script": "The Prophet Muhammad, peace be upon him, saw the angel Jibril in his true form only twice. And both times, he filled the horizon. Most of the time, Jibril came in the form of a man. The companions once saw him like this: a stranger in brilliant white clothes, with no trace of travel on him, who sat before the Prophet and asked about Islam. But his real form was something else. In Sahih al-Bukhari, Abdullah ibn Mas'ud reports that the Prophet saw Jibril with six hundred wings. And in Sahih Muslim, Aisha reports the Prophet's own words. He saw Jibril descending from the sky, and the greatness of his form filled everything between heaven and earth. The Quran points to these moments: 'And he certainly saw him on the clear horizon.' And again, at the Lote Tree of the utmost boundary. Think about that. The angel who brought the Quran down to earth was so vast he could cover the sky. And yet the message he carried was made for one small human heart. Yours.",
+      "accuracy_note": "Authentic hadith: Sahih al-Bukhari 4856-4857 (Ibn Mas'ud: Jibril with six hundred wings); Sahih Muslim 177 (Aisha: the Prophet saw Jibril in his created form only twice, his greatness filling what is between heaven and earth); Sahih Muslim 8 (the hadith of Jibril in human form). Quran 81:23 and 53:13-14.",
+      "caption": "Six hundred wings. A form that filled the space between heaven and earth. This is how the Prophet described Jibril.",
+      "hashtags": [
+        "#Islam",
+        "#Angels",
+        "#Jibril",
+        "#Quran",
+        "#Hadith",
+        "#Muslim"
+      ],
+      "continuity": "Angels appear only as radiant white-gold light and luminous wings, never with faces. Setting: the desert mountains around Mecca, Mount Hira, and the simple palm-trunk mosque of Medina.",
+      "style": "fresco",
+      "scenes": [
+        {
+          "text": "The Prophet Muhammad, peace be upon him, saw the angel Jibril in his true form only twice.",
+          "visual": "Mystery: Mount Hira at night before the light.",
+          "prompt": "The rocky peak of Mount Hira above the desert at night, a small cave near the summit, and on the far horizon the first hint of an immense white-gold light rising, no people, awe and silence",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "And both times, he filled the horizon.",
+          "visual": "Jibril's true form as light across the horizon.",
+          "prompt": "Immense luminous wings of white and gold light spreading across the entire horizon above the desert mountains, layer upon layer of radiant feathers made of light, no face or body, the land tiny beneath",
+          "motion": "zoom_out"
+        },
+        {
+          "text": "Most of the time, Jibril came in the form of a man.",
+          "visual": "Human form shown only as a featureless figure of light.",
+          "prompt": "A quiet palm-lined path in ancient Medina at golden hour, at the end of the path a tall featureless figure made entirely of soft white light, no face and no features, palm shadows across the sand",
+          "motion": "pan_right"
+        },
+        {
+          "text": "The companions once saw him like this: a stranger in brilliant white clothes,",
+          "visual": "The simple mosque with a radiant presence; no people depicted.",
+          "prompt": "Interior of the simple early mosque of Medina built from palm trunks and mud brick, woven mats on the floor, sunlight through gaps in the palm-frond roof, a column of brilliant white light glowing at the center, no people visible",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "with no trace of travel on him, who sat before the Prophet and asked about Islam.",
+          "visual": "No dust of travel: an empty desert road.",
+          "prompt": "View from the doorway of the palm-trunk mosque onto an empty desert road with no footprints at all in the sand, a pure white cloth glowing on the mat inside, mysterious stillness",
+          "motion": "pan_left"
+        },
+        {
+          "text": "But his real form was something else.",
+          "visual": "Turning point: the heavens opening.",
+          "prompt": "Dark heavy storm clouds over the desert beginning to part, an overwhelming white-gold radiance pressing through the gap, rays of divine light bursting outward",
+          "motion": "pan_up"
+        },
+        {
+          "text": "In Sahih al-Bukhari, Abdullah ibn Mas'ud reports that the Prophet saw Jibril with six hundred wings.",
+          "visual": "Hadith source plus the vision of countless wings.",
+          "prompt": "An ancient hadith manuscript open on a reading stand beside an oil lamp, and above it, filling the dark air, countless glowing wings of light layered like a vast cathedral of feathers",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "And in Sahih Muslim, Aisha reports the Prophet's own words.",
+          "visual": "A lamp-lit room in Medina; no people depicted.",
+          "prompt": "A humble lamp-lit room in old Medina at night, a low wooden table with a manuscript, an ink pot and a reed pen, a window open to the starry sky, warm intimate light, no people",
+          "motion": "pan_down"
+        },
+        {
+          "text": "He saw Jibril descending from the sky,",
+          "visual": "Descent of the radiant form.",
+          "prompt": "A colossal radiance descending from the heavens through parting clouds above the valley of Mecca, enormous wings of light unfolding downward, rays striking the mountains",
+          "motion": "pan_down"
+        },
+        {
+          "text": "and the greatness of his form filled everything between heaven and earth.",
+          "visual": "Scale: wings from ground to sky.",
+          "prompt": "Wings of white and gold light stretching from the desert floor to the top of the sky, tiny mountains and a tiny caravan below for scale, overwhelming majesty",
+          "motion": "zoom_out"
+        },
+        {
+          "text": "The Quran points to these moments: 'And he certainly saw him on the clear horizon.'",
+          "visual": "The clear horizon at dawn.",
+          "prompt": "A perfectly clear desert horizon at dawn, a thin line of brilliant white light stretching across the entire horizon, the sky above deepening from gold to blue, vast and silent",
+          "motion": "pan_right"
+        },
+        {
+          "text": "And again, at the Lote Tree of the utmost boundary.",
+          "visual": "Sidrat al-Muntaha among the stars.",
+          "prompt": "A vast luminous tree at the edge of the heavens among stars and nebulae, its leaves glowing with golden light, light cascading from its branches, utterly otherworldly and holy",
+          "motion": "pan_up"
+        },
+        {
+          "text": "Think about that. The angel who brought the Quran down to earth",
+          "visual": "Revelation descending to the cave of Hira.",
+          "prompt": "A narrow beam of divine light descending from the night sky into a small mountain cave, inside the cave a soft glow on the rock walls, no people visible, the desert far below",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "was so vast he could cover the sky.",
+          "visual": "The sky covered by wings of light.",
+          "prompt": "The entire night sky covered by enormous softly glowing wings of light, beneath them a tiny desert caravan with camels and lanterns, a sense of overwhelming scale",
+          "motion": "zoom_out"
+        },
+        {
+          "text": "And yet the message he carried was made for one small human heart. Yours.",
+          "visual": "Ending: the message reaching one person.",
+          "prompt": "A single oil lamp glowing in a humble room at night, a pair of ordinary hands gently holding an open Quran, the warm light rising through the open window toward the stars, intimate and powerful",
+          "motion": "pan_up"
+        }
+      ]
+    },
+    {
+      "title": "The Prayer From Inside the Whale",
+      "topic": "Prophet Yunus and his supplication",
+      "hook": "There are words that were spoken from inside the belly of a whale, and the Prophet said they are still answered today.",
+      "script": "There are words that were spoken from inside the belly of a whale, and the Prophet said they are still answered today. Prophet Yunus was sent to a city that refused to listen. He left them in anger, and boarded a heavily loaded ship. Out at sea, the ship was in danger. They cast lots, and the lot fell on Yunus. He was thrown into the dark water, and a great fish swallowed him. The Quran says he called out from within the darknesses. Early scholars explained them as three: the darkness of the night, the darkness of the sea, and the darkness inside the whale. And from there, he said: 'There is no god but You. Glory be to You. Truly, I have been among the wrongdoers.' Allah answered him. The fish cast him onto the shore, weak and sick, and a gourd plant grew over him. The Quran says that if he had not glorified Allah, he would have stayed in that belly until the Day of Resurrection. And the Prophet Muhammad, peace be upon him, said that no Muslim makes this prayer for anything, except that Allah answers him. Right after this story, Allah says: 'And thus do We save the believers.' Whatever darkness you are in tonight, you now know the words.",
+      "accuracy_note": "Quran 21:87-88 (the call from within the darknesses, 'thus do We save the believers'), 37:139-148 (the laden ship, the lots, the fish, the shore, the gourd plant, 'until the Day they are resurrected'). Hadith: Jami' at-Tirmidhi 3505 (no Muslim makes this supplication except that Allah answers him; graded sahih by al-Hakim and al-Albani). The 'three darknesses' explanation comes from early commentators (Ibn Mas'ud, Ibn Abbas, in Tafsir Ibn Kathir) and is labeled as such.",
+      "caption": "He was in the darkest place on earth, and he said one sentence. Save these words.",
+      "hashtags": [
+        "#Islam",
+        "#ProphetYunus",
+        "#Dua",
+        "#Quran",
+        "#IslamicStories",
+        "#Muslim"
+      ],
+      "continuity": "Prophet Yunus is never shown: his presence is implied through the ship, the sea, the whale, light, and the shore. Ancient Nineveh on a river; a wooden merchant ship; a colossal dark whale; a sandy shore with broad green gourd leaves.",
+      "style": "fresco",
+      "scenes": [
+        {
+          "text": "There are words that were spoken from inside the belly of a whale,",
+          "visual": "Hook: the whale in the deep with light inside.",
+          "prompt": "Deep dark ocean, a colossal whale silhouette gliding through the blue-black water, a faint warm golden glow coming from within it, shafts of moonlight from far above",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "and the Prophet said they are still answered today.",
+          "visual": "Prayer still rising today (no people depicted).",
+          "prompt": "An oil lamp hanging in a quiet ancient mosque at night, its warm light rising upward through an arched window into a sky full of stars, a sense of prayers ascending",
+          "motion": "pan_up"
+        },
+        {
+          "text": "Prophet Yunus was sent to a city that refused to listen.",
+          "visual": "Nineveh, the city that turned away.",
+          "prompt": "The great ancient city of Nineveh on a river, massive stone walls and temple towers, crowds in the streets turning their backs and walking away, a dark sky gathering above",
+          "motion": "pan_right"
+        },
+        {
+          "text": "He left them in anger, and boarded a heavily loaded ship.",
+          "visual": "The laden ship; the prophet is not shown.",
+          "prompt": "A heavily loaded wooden merchant ship at an ancient harbor at dusk, sailors carrying sacks and amphorae up the gangplank, a single line of footprints on the wet dock leading to the ship",
+          "motion": "pan_left"
+        },
+        {
+          "text": "Out at sea, the ship was in danger.",
+          "visual": "The ship in peril.",
+          "prompt": "A wooden ship tossed on enormous dark waves in a violent storm at night, torn sails, lightning splitting the sky, spray and foam",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "They cast lots, and the lot fell on Yunus.",
+          "visual": "The casting of lots (hands only).",
+          "prompt": "Close-up of weathered sailors' hands drawing marked wooden lots from a clay bowl on a rain-soaked deck, a swinging lantern casting harsh light, tension",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "He was thrown into the dark water,",
+          "visual": "The splash; no figure shown.",
+          "prompt": "A great white splash in a black stormy sea beside the dark hull of a wooden ship at night, ripples spreading, no figure visible, rain and lightning",
+          "motion": "pan_down"
+        },
+        {
+          "text": "and a great fish swallowed him.",
+          "visual": "The great fish rising.",
+          "prompt": "A colossal whale rising from the abyss with its enormous mouth open in the deep blue darkness, bubbles and drifting particles, overwhelming scale",
+          "motion": "zoom_out"
+        },
+        {
+          "text": "The Quran says he called out from within the darknesses.",
+          "visual": "Inside the whale: darkness with a faint glow.",
+          "prompt": "Inside the belly of a whale, curving ribs rising like the arches of a dark cathedral, almost total darkness except one faint warm glow deep within, no person visible",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "Early scholars explained them as three: the darkness of the night,",
+          "visual": "First darkness: the night.",
+          "prompt": "A moonless night sky over an endless sea, heavy clouds hiding every star, only the faintest silver edge on the waves, deep and lonely",
+          "motion": "pan_up"
+        },
+        {
+          "text": "the darkness of the sea, and the darkness inside the whale.",
+          "visual": "Layers of darkness: sea and whale.",
+          "prompt": "A vertical cross-section view of layered darkness: the night sky at the top, the black sea surface, the deep ocean below, and the silhouette of a whale in the depths with a tiny glow inside",
+          "motion": "pan_down"
+        },
+        {
+          "text": "And from there, he said: 'There is no god but You.",
+          "visual": "The prayer: light rising from the darkness.",
+          "prompt": "Inside the dark whale, a soft column of golden light rising upward through the water toward the distant surface, the darkness beginning to give way",
+          "motion": "pan_up"
+        },
+        {
+          "text": "Glory be to You. Truly, I have been among the wrongdoers.'",
+          "visual": "The prayer reaching the heavens.",
+          "prompt": "The column of golden light breaking the surface of the sea and rising into the night sky, storm clouds parting around it, stars appearing",
+          "motion": "zoom_out"
+        },
+        {
+          "text": "Allah answered him. The fish cast him onto the shore, weak and sick,",
+          "visual": "The shore at dawn; prophet not shown.",
+          "prompt": "A calm deserted sandy shore at dawn, a great whale turning back into the gentle sea, soft waves, warm pink and gold sky, peace after the storm",
+          "motion": "pan_right"
+        },
+        {
+          "text": "and a gourd plant grew over him.",
+          "visual": "The gourd plant giving shade.",
+          "prompt": "Broad green gourd leaves and vines growing over a shaded resting place on the sand, dappled morning sunlight through the leaves, gentle and merciful",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "The Quran says that if he had not glorified Allah,",
+          "visual": "Source: Quran manuscript.",
+          "prompt": "An ancient Quran manuscript on a carved wooden stand by candlelight, ornamental gold borders, a still and reverent atmosphere",
+          "motion": "pan_down"
+        },
+        {
+          "text": "he would have stayed in that belly until the Day of Resurrection.",
+          "visual": "What could have been: endless darkness.",
+          "prompt": "A lone whale drifting through an endless dark abyss under a faint eerie light, a sense of eternity and silence",
+          "motion": "zoom_out"
+        },
+        {
+          "text": "And the Prophet Muhammad, peace be upon him, said that no Muslim makes this prayer for anything,",
+          "visual": "Worshippers praying at night (ordinary people, from behind).",
+          "prompt": "Ordinary worshippers seen from behind raising their hands in prayer in a lamp-lit mosque at night, rows of arches, warm light, deep devotion",
+          "motion": "zoom_in"
+        },
+        {
+          "text": "except that Allah answers him.",
+          "visual": "Answer: light descending on raised hands.",
+          "prompt": "Soft golden divine light descending from above onto raised open hands, the dark room filling with warmth",
+          "motion": "pan_down"
+        },
+        {
+          "text": "Right after this story, Allah says: 'And thus do We save the believers.'",
+          "visual": "Rescue: dawn over the sea.",
+          "prompt": "Dawn breaking over a calm sea after a storm, a small ship sailing safely toward the rising sun, rays of divine light across the water",
+          "motion": "pan_right"
+        },
+        {
+          "text": "Whatever darkness you are in tonight, you now know the words.",
+          "visual": "Ending: one lamp pushing back the dark.",
+          "prompt": "A single oil lamp glowing in a dark room at night, its warm light slowly expanding to push back the darkness, a window open to a sky full of stars, hopeful and powerful",
+          "motion": "zoom_out"
+        }
+      ]
+    }
+  ]
+}
