@@ -1,0 +1,15 @@
+HOW TO OPEN MARKET COMPASS ON YOUR COMPUTER
+
+1. Unzip this folder (right-click the .zip > Extract All on Windows, or double-click it on Mac).
+
+2. One-time only: install Node.js (free). Go to https://nodejs.org and click the big "LTS" download button, then run the installer and click Next until it's done.
+
+3. Open the folder and double-click:
+     Windows:  "Start Market Compass (Windows).bat"
+     Mac:      "Start Market Compass (Mac).command"
+        (Mac may say it's from an unidentified developer: right-click the file > Open > Open.)
+
+4. The app opens in your web browser. Keep the black window open while you use it.
+   Closing that window turns the app off. Double-click the file again any time to start it.
+
+The first start takes about a minute. After that it opens in a few seconds.
