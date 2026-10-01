@@ -7,7 +7,7 @@ import Practice from './pages/Practice.jsx'
 import Learn from './pages/Learn.jsx'
 import Settings from './pages/Settings.jsx'
 import { go, useLive, useRoute } from './components/ui.jsx'
-import { isDemo, setDemo } from './lib/data.js'
+import { PREVIEW_BUILD, isDemo, setDemo } from './lib/data.js'
 import { checkPaperExits, setState, useStore } from './lib/store.js'
 import { UNIVERSE, displaySymbol } from './lib/universe.js'
 
@@ -54,7 +54,9 @@ export default function App() {
       </header>
       <main className="shell">
         {isDemo() && (
-          <div className="banner warn">⚠️ <span><strong>Demo mode is on.</strong> All prices and news are made up. <button className="btn small" onClick={() => setDemo(false)}>Switch to real data</button></span></div>
+          PREVIEW_BUILD
+            ? <div className="banner warn">⚠️ <span><strong>Preview with practice prices.</strong> Every price, chart and headline here is made up, so don't trade on them. This preview can't connect to live markets. The guides in Learn and the step-by-step app instructions are real.</span></div>
+            : <div className="banner warn">⚠️ <span><strong>Demo mode is on.</strong> All prices and news are made up. <button className="btn small" onClick={() => setDemo(false)}>Switch to real data</button></span></div>
         )}
         {body}
         <p className="footer-note">

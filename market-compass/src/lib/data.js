@@ -6,7 +6,11 @@
 import { demoHistory, demoIntraday, demoNews, demoQuote } from './demo.js'
 import { kindOf } from './universe.js'
 
+// Set when building the self-contained preview page, which can't reach any server.
+export const PREVIEW_BUILD = import.meta.env?.VITE_PREVIEW_BUILD === '1'
+
 export function isDemo() {
+  if (PREVIEW_BUILD) return true
   try {
     if (new URLSearchParams(location.search).get('demo') === '1') return true
     return localStorage.getItem('mc.demo') === '1'
