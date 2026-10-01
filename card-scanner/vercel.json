@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "functions": {
+    "api/identify.js": { "maxDuration": 60 },
+    "api/search.js": { "maxDuration": 30 },
+    "api/card.js": { "maxDuration": 30 },
+    "api/ebay.js": { "maxDuration": 30 },
+    "api/pricecharting.js": { "maxDuration": 30 }
+  }
+}

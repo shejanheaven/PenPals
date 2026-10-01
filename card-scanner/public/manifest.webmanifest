@@ -1,0 +1,16 @@
+{
+  "name": "Binder — Card Scanner",
+  "short_name": "Binder",
+  "description": "Scan Pokémon and Yu-Gi-Oh! cards, build collections, and see what they really sell for.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0a14",
+  "theme_color": "#0b0a14",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

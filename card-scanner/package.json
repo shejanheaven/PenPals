@@ -1,0 +1,25 @@
+{
+  "name": "card-scanner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Scan Pokémon and Yu-Gi-Oh! cards with your phone camera, organize them into collections, and see realistic resale values.",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "vite": "^8.3.2"
+  }
+}
