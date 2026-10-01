@@ -541,8 +541,8 @@ function Connections() {
 
 function exportCalendar() {
   const items = Object.values(getState().items).filter((i) => !i.deleted)
-  downloadFile(`cadence-${todayKey()}.ics`, toICS(items), 'text/calendar')
-  toast(`Exported ${items.length} ${items.length === 1 ? 'item' : 'items'}`)
+  if (downloadFile(`cadence-${todayKey()}.ics`, toICS(items), 'text/calendar')) toast(`Exported ${items.length} ${items.length === 1 ? 'item' : 'items'}`)
+  else toast('Exporting works in your installed app, not in this preview')
 }
 
 function ImportCalendarButton() {
@@ -581,8 +581,8 @@ function DataGroup() {
         title="Download a backup"
         sub="A .json file you can keep anywhere"
         onClick={() => {
-          downloadFile(`cadence-backup-${todayKey()}.json`, JSON.stringify(getState(), null, 2), 'application/json')
-          toast('Backup downloaded')
+          if (downloadFile(`cadence-backup-${todayKey()}.json`, JSON.stringify(getState(), null, 2), 'application/json')) toast('Backup downloaded')
+          else toast('Backups download in your installed app, not in this preview')
         }}
       />
       <Row icon={Upload} title="Restore from a backup" sub="Merged with what’s here — newest edits win" onClick={() => input.current?.click()} />

@@ -179,7 +179,9 @@ function toItem(ev, { today, keepDays, defaultReminder }) {
   }
 }
 
+// Returns false where the page isn't allowed to save files (the preview).
 export function downloadFile(name, content, type = 'text/plain') {
+  if (import.meta.env.VITE_PREVIEW === '1') return false
   const blob = new Blob([content], { type })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -189,4 +191,5 @@ export function downloadFile(name, content, type = 'text/plain') {
   a.click()
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
+  return true
 }
