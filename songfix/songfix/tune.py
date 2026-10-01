@@ -1,0 +1,206 @@
+"""Note-based pitch correction for a vocal stem.
+
+Instead of hard "robot" auto-tune, every sung note is detected and the whole
+note is moved so its centre lands on the nearest note of the song's key.
+Vibrato, slides and expression inside the note are kept. Notes that are
+already in tune (within --min-cents) are left completely untouched.
+"""
+import numpy as np
+import librosa
+from scipy.ndimage import median_filter, uniform_filter1d
+
+from .psola import shift_region
+
+NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+SCALES = {
+    "major": [0, 2, 4, 5, 7, 9, 11],
+    "minor": [0, 2, 3, 5, 7, 8, 10],
+    "chromatic": list(range(12)),
+}
+ANALYSIS_SR = 22050
+HOP = 256
+
+
+def parse_key(key):
+    """'C minor', 'F# major', 'Am', 'chromatic' -> (tonic_pc, scale_name)."""
+    k = key.strip().replace("♯", "#").replace("♭", "b")
+    if k.lower() == "chromatic":
+        return 0, "chromatic"
+    flats = {"Db": "C#", "Eb": "D#", "Gb": "F#", "Ab": "G#", "Bb": "A#"}
+    parts = k.split()
+    root = parts[0]
+    mode = parts[1].lower() if len(parts) > 1 else "major"
+    if len(parts) == 1 and root.endswith("m") and len(root) > 1:
+        root, mode = root[:-1], "minor"
+    root = root[0].upper() + root[1:]
+    root = flats.get(root, root)
+    if root not in NOTE_NAMES or mode not in ("major", "minor"):
+        raise ValueError(f"Could not understand key '{key}'. Try e.g. 'C major', 'A minor', 'F#m'.")
+    return NOTE_NAMES.index(root), mode
+
+
+def track_pitch(vocal_mono, sr):
+    """Return (times, midi, voiced) at HOP/ANALYSIS_SR resolution."""
+    y = librosa.resample(vocal_mono, orig_sr=sr, target_sr=ANALYSIS_SR)
+    f0, voiced, _ = librosa.pyin(y, fmin=65, fmax=1100, sr=ANALYSIS_SR,
+                                 frame_length=1024, hop_length=HOP)
+    times = librosa.frames_to_time(np.arange(len(f0)), sr=ANALYSIS_SR, hop_length=HOP)
+    # pYIN works on a 10-cent grid; refine with plain YIN (continuous, parabolic
+    # interpolation) wherever the two agree, keeping pYIN's robust voicing.
+    f0_yin = librosa.yin(y, fmin=65, fmax=1100, sr=ANALYSIS_SR, frame_length=1024,
+                         hop_length=HOP)[:len(f0)]
+    f0_seed = np.where(voiced & np.isfinite(f0), f0, 0.0)
+    ratio = np.divide(f0_yin, f0_seed, out=np.ones_like(f0_seed), where=f0_seed > 0)
+    good = (f0_seed > 0) & (np.abs(12 * np.log2(np.maximum(ratio, 1e-6))) < 0.3)
+    f0_out = np.where(good, f0_yin, f0_seed)
+    voiced = f0_out > 0
+    midi = np.full(len(f0_out), np.nan)
+    midi[voiced] = librosa.hz_to_midi(f0_out[voiced])
+    return times, midi, voiced
+
+
+def find_notes(times, midi, voiced, min_dur=0.08, split_jump=0.6):
+    """Split voiced pitch into note segments. Returns list of dicts."""
+    hop_t = times[1] - times[0]
+    smooth = midi.copy()
+    smooth[voiced] = median_filter(midi[voiced], size=5)
+    notes = []
+    n = len(midi)
+    i = 0
+    while i < n:
+        if not voiced[i]:
+            i += 1
+            continue
+        j = i
+        while j + 1 < n and voiced[j + 1] and abs(smooth[j + 1] - smooth[j]) < split_jump:
+            j += 1
+        dur = (j - i + 1) * hop_t
+        if dur >= min_dur:
+            seg = midi[i:j + 1]
+            k = len(seg)
+            a, b = int(k * 0.2), max(int(k * 0.8), int(k * 0.2) + 1)
+            core = seg[a:b]
+            q = max(1, k // 4)
+            # Remove the straight-line drift so vibrato counts as "wobble"
+            # while a real slide shows up as "trend".
+            x = np.arange(len(core))
+            detrended = core - np.polyval(np.polyfit(x, core, 1), x) if len(core) > 2 else core
+            notes.append({
+                "start": i, "end": j + 1,
+                "t0": float(times[i]), "t1": float(times[j] + hop_t),
+                "center": float(np.median(core)),
+                "wobble": float(np.std(detrended)),
+                "trend": float(np.median(seg[-q:]) - np.median(seg[:q])),
+            })
+        i = j + 1
+    return notes
+
+
+def nearest_scale_note(m, tonic, scale):
+    allowed = [(tonic + s) % 12 for s in SCALES[scale]]
+    base = int(np.floor(m)) - 13
+    cands = [p for p in range(base, base + 27) if p % 12 in allowed]
+    return min(cands, key=lambda p: abs(p - m))
+
+
+def plan_corrections(notes, tonic, scale, min_cents=15, strength=1.0,
+                     min_dur=0.15, max_cents=45, max_wobble=0.45, max_trend=0.6):
+    """Decide a constant shift (in semitones) for each note.
+
+    Only clearly held notes are touched. Short flicks, runs and slides are
+    usually intentional (or already shaped by the singer's auto-tune), so they
+    are left exactly as recorded.
+    """
+    plan = []
+    for nt in notes:
+        target = nearest_scale_note(nt["center"], tonic, scale)
+        off_cents = 100 * (nt["center"] - target)
+        dur = nt["t1"] - nt["t0"]
+        shift = 0.0
+        if abs(off_cents) < min_cents:
+            status = "in tune"
+        elif dur < min_dur:
+            status = "too short (left natural)"
+        elif abs(nt["trend"]) > max_trend or nt["wobble"] > max_wobble:
+            status = "slide/run (left natural)"
+        elif abs(off_cents) > max_cents and not (dur >= 0.3 and nt["wobble"] < 0.2 and abs(off_cents) <= 65):
+            status = "between notes (left natural)"
+        else:
+            shift = -off_cents / 100 * strength
+            status = "corrected"
+        plan.append({**nt, "target": int(target), "off_cents": float(off_cents),
+                     "shift": float(shift), "status": status})
+    # Two touching notes pulled in opposite directions means the singer was
+    # sliding between them - correcting both would exaggerate the jump.
+    for a, b in zip(plan, plan[1:]):
+        touching = b["t0"] - a["t1"] < 0.05
+        if (touching and a["shift"] * b["shift"] < 0
+                and abs(a["center"] - b["center"]) < 1.2):
+            for p in (a, b):
+                p["shift"], p["status"] = 0.0, "slide/run (left natural)"
+    return plan
+
+
+def shift_curve(plan, n_frames, hop_t, glide=0.03, bridge=0.15):
+    """Per-frame shift (semitones): constant within notes, smooth in between."""
+    curve = np.zeros(n_frames)
+    active = np.zeros(n_frames, dtype=bool)
+    for p in plan:
+        if p["shift"] != 0.0:
+            curve[p["start"]:p["end"]] = p["shift"]
+            active[p["start"]:p["end"]] = True
+    # Hold the shift across short gaps between two corrected notes so the
+    # consonant/transition between them moves together with them.
+    idx = np.flatnonzero(active)
+    if len(idx) > 1:
+        gaps = np.flatnonzero(np.diff(idx) > 1)
+        for g in gaps:
+            a, b = idx[g], idx[g + 1]
+            if (b - a) * hop_t <= bridge:
+                curve[a + 1:b] = np.linspace(curve[a], curve[b], b - a + 1)[1:-1]
+                active[a + 1:b] = True
+    w = max(1, int(round(glide / hop_t)))
+    return uniform_filter1d(curve, size=w, mode="nearest")
+
+
+def correct_vocals(vocals, sr, key, min_cents=15, strength=1.0, track=None, log=print):
+    """Pitch-correct a stereo vocal stem (n, 2). Returns (tuned, plan, track)."""
+    mono = vocals.mean(axis=1)
+    if track is None:
+        times, midi, voiced = track_pitch(mono, sr)
+    else:
+        times, midi, voiced = track["times"], track["midi"], track["voiced"]
+    tonic, scale = parse_key(key)
+    notes = find_notes(times, midi, voiced)
+    plan = plan_corrections(notes, tonic, scale, min_cents=min_cents, strength=strength)
+    hop_t = HOP / ANALYSIS_SR
+    curve = shift_curve(plan, len(times), hop_t)
+    track = {"times": times, "midi": midi, "voiced": voiced, "curve": curve}
+    n_fixed = sum(1 for p in plan if p["status"] == "corrected")
+    if n_fixed == 0:
+        log("  every sung note is already in tune - vocal left untouched")
+        return vocals.copy(), plan, track
+
+    # Render each corrected note (plus a little room either side so the
+    # pitch can glide in and settle back) with PSOLA; everything else stays
+    # sample-for-sample identical to the original.
+    t_samples = np.arange(len(mono)) / sr
+    ratio = 2.0 ** (np.interp(t_samples, times, curve) / 12)
+    f0_frames = np.where(voiced, librosa.midi_to_hz(np.nan_to_num(midi, nan=0.0)), 0.0)
+    f0_samples = np.interp(t_samples, times, f0_frames)
+    # Don't let interpolation smear voiced pitch into unvoiced gaps.
+    f0_samples[np.interp(t_samples, times, voiced.astype(float)) < 0.5] = 0.0
+    regions = []
+    for p in plan:
+        if p["status"] == "corrected":
+            a, b = int((p["t0"] - 0.12) * sr), int((p["t1"] + 0.6) * sr)
+            if regions and a <= regions[-1][1]:
+                regions[-1][1] = b
+            else:
+                regions.append([a, b])
+    tuned = vocals.copy()
+    for a, b in regions:
+        a, b, seg = shift_region(vocals, f0_samples, ratio, max(0, a), min(len(mono) - 1, b), sr)
+        tuned[a:b] = seg
+    log(f"  corrected {n_fixed} of {len(plan)} sung notes")
+    return tuned, plan, track
