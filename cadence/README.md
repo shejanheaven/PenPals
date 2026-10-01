@@ -45,8 +45,15 @@ that's encouraging rather than naggy.
 | `Pay rent on the 1st every month` | Monthly on the 1st |
 | `Dinner with Priya Friday 7:30pm` | Friday, 7:30 PM |
 
+**Talk to it.** Tap the mic (above the + button on your phone, *Speak* or `V` on a computer) and
+just say it: "Make an appointment for 4 pm today", "Remind me to call mom at five thirty",
+"Gym every Monday and Wednesday at 6 p.m.". Clear requests are added straight away (with Undo);
+anything vague waits for you to check it. Voice uses your browser's built-in speech recognition
+(Chrome, Edge, Android, and Safari on iPhone/Mac); if it isn't available, your keyboard's mic
+dictation works in the same box.
+
 Also: undo on everything, light/dark themes, six accent colours, 24-hour clock, Monday/Sunday
-week start, keyboard shortcuts on desktop (`N` new, `T` today, `1`–`4` views, `B` breathe, `I` inbox).
+week start, keyboard shortcuts on desktop (`N` new, `V` speak, `T` today, `1`–`4` views, `B` breathe, `I` inbox).
 
 ---
 

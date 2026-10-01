@@ -22,6 +22,7 @@ export const openLayer = (type, props = {}) => set({ layer: { type, ...props, ke
 export const closeLayer = () => set({ layer: null })
 
 export const openQuickAdd = (props) => openLayer('quick', props)
+export const openVoice = () => openLayer('quick', { voice: true })
 export const openItem = (itemId, date) => openLayer('item', { itemId, date })
 export const newItem = (draft = {}, extra = {}) => openLayer('item', { draft, ...extra })
 export const openGoal = (goalId) => openLayer('goal', { goalId })

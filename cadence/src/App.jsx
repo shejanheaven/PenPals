@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
-import { CalendarDays, Feather, Inbox as InboxIcon, Plus, Settings as SettingsIcon, Sun, Target, Wind } from 'lucide-react'
+import { CalendarDays, Mic, Feather, Inbox as InboxIcon, Plus, Settings as SettingsIcon, Sun, Target, Wind } from 'lucide-react'
 import { useStore } from './store/store.js'
 import { setCheck } from './store/actions.js'
-import { closeLayer, openBreathe, openFocus, openInbox, openItem, openQuickAdd, useUI } from './store/ui.js'
+import { closeLayer, openBreathe, openFocus, openInbox, openItem, openQuickAdd, openVoice, useUI } from './store/ui.js'
+import { voiceSupported } from './services/voice.js'
 import { navigate, useRoute } from './router.js'
 import { applyTheme } from './lib/theme.js'
 import { setClock24 } from './lib/dates.js'
@@ -97,6 +98,7 @@ function useShortcuts(enabled) {
       const k = e.key.toLowerCase()
       const map = {
         n: () => openQuickAdd(),
+        v: openVoice,
         t: () => navigate('today'),
         b: openBreathe,
         i: openInbox,
@@ -180,6 +182,11 @@ export default function App({ launch }) {
           <InboxIcon size={18} /> Inbox {inboxCount > 0 && <span className="badge">{inboxCount}</span>}
         </button>
         <div className="side-foot">
+          {voiceSupported() && (
+            <button className="side-link" onClick={openVoice}>
+              <Mic size={18} /> Speak <span className="kbd" style={{ marginLeft: 'auto' }}>V</span>
+            </button>
+          )}
           <button className="side-link" onClick={openBreathe}>
             <Wind size={18} /> Breathe
           </button>
@@ -222,6 +229,11 @@ export default function App({ launch }) {
         ))}
       </nav>
 
+      {voiceSupported() && (
+        <button className="fab-voice" onClick={openVoice} aria-label="Speak to add to your plan">
+          <Mic size={20} />
+        </button>
+      )}
       <button className="fab" onClick={() => openQuickAdd()} aria-label="Add to your plan">
         <Plus size={26} />
       </button>

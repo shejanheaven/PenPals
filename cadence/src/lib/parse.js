@@ -65,7 +65,44 @@ function nextWeekday(today, wd, { strictlyAfter = false } = {}) {
   return addDays(today, delta)
 }
 
+// Spoken requests arrive as sentences: "make an appointment for 4 pm today",
+// "remind me to call mom at five thirty". Strip the request wording and turn
+// spoken numbers into clock times so the normal parser can read them.
+const HOUR_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 }
+const MINUTE_WORDS = { fifteen: 15, thirty: 30, 'forty five': 45, 'forty-five': 45, fortyfive: 45, 'o five': 5, 'oh five': 5, ten: 10, twenty: 20, 'twenty five': 25, forty: 40, fifty: 50 }
+const ORDINAL_WORDS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth', 'thirteenth', 'fourteenth', 'fifteenth', 'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth', 'twentieth']
+ORDINAL_WORDS[29] = 'thirtieth'
+const ordinal = (n) => `${n}${[11, 12, 13].includes(n % 100) ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`
+const HW = '(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)'
+const MW = '(fifteen|thirty|forty[- ]?five|oh five|o five|twenty five|twenty|forty|fifty)'
+
+export function normalizeSpoken(text) {
+  let t = ` ${text.trim()} `
+  t = t.replace(/^\s*(?:hey|hi|ok|okay)\s+cadence[,.!]?\s*/i, ' ')
+  t = t.replace(/^\s*(?:please\s+|can you\s+|could you\s+|would you\s+)+/i, ' ')
+  t = t.replace(
+    /^\s*(?:(?:please\s+)?(?:make|create|add|schedule|set up|setup|set|book|put|plan|pencil in|put in|log)(?:\s+(?:me|in))?|i(?:'ve| have)? got|i have|there(?:'s| is)|i need to|i want to|i'd like to|i should|i gotta|i have to|don't forget to|dont forget to)\s+(?:(?:an?|the|my|some)\s+)?/i,
+    ' ',
+  )
+  t = t.replace(/[,.!?]*\s*(?:please|thanks|thank you)[.!]?\s*$/i, ' ')
+  t = t.replace(new RegExp(`\\bhalf past ${HW}\\b`, 'gi'), (_, h) => `${HOUR_WORDS[h.toLowerCase()]}:30`)
+  t = t.replace(new RegExp(`\\bquarter past ${HW}\\b`, 'gi'), (_, h) => `${HOUR_WORDS[h.toLowerCase()]}:15`)
+  t = t.replace(new RegExp(`\\bquarter to ${HW}\\b`, 'gi'), (_, h) => `${((HOUR_WORDS[h.toLowerCase()] + 10) % 12) + 1}:45`)
+  t = t.replace(new RegExp(`\\b${HW}\\s+${MW}\\b`, 'gi'), (_, h, m) => `${HOUR_WORDS[h.toLowerCase()]}:${String(MINUTE_WORDS[m.toLowerCase().replace(/-/g, ' ')] ?? 0).padStart(2, '0')}`)
+  t = t.replace(new RegExp(`\\b(at|by|around|from|until|till|to)\\s+${HW}\\b`, 'gi'), (_, w, h) => `${w} ${HOUR_WORDS[h.toLowerCase()]}`)
+  t = t.replace(new RegExp(`\\b${HW}(?=\\s*(?:o'?clock|a\\.?\\s?m\\b|p\\.?\\s?m\\b))`, 'gi'), (h) => String(HOUR_WORDS[h.toLowerCase()]))
+  t = t.replace(/\b(the\s+)((?:twenty|thirty)[- ])?(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|thirtieth)\b/gi, (_, the, tens, word) => {
+    const n = ORDINAL_WORDS.indexOf(word.toLowerCase()) + 1 + (tens ? (tens.toLowerCase().startsWith('twenty') ? 20 : 30) : 0)
+    return `${the}${ordinal(n)}`
+  })
+  t = t.replace(/[.!?]+\s*$/, ' ')
+  t = t.replace(/\b(\d{1,2}(?::\d{2})?)\s*o'?clock\b/gi, '$1')
+  t = t.replace(/\b(\d{1,2}(?::\d{2})?)\s*([ap])\.?\s?m\b\.?/gi, '$1$2m')
+  return t.replace(/\s+/g, ' ').trim()
+}
+
 export function parseQuick(input, opts = {}) {
+  if (opts.spoken) input = normalizeSpoken(input ?? '')
   const today = opts.today ?? todayKey()
   const dayFirst = !!opts.dayFirst
   const areas = opts.areas ?? []

@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowRight, Bell, CalendarDays, Check as CheckIcon, Clock, Flame, Play, Repeat, SkipForward, Sparkles, Tag, Target, Trash2, Undo2,
+  ArrowRight, Bell, CalendarDays, Check as CheckIcon, Clock, Flame, Play, Repeat, SkipForward, Sparkles, Tag, Target, Trash2, Undo2, Mic,
 } from 'lucide-react'
 import { AreaChips, Check, Seg, Sheet, toast } from './ui.jsx'
 import { useStore } from '../store/store.js'
@@ -16,6 +16,7 @@ import { describeRepeat, ordinal, shortRepeat } from '../lib/recurrence.js'
 import { parseQuick } from '../lib/parse.js'
 import { goalsFor, statusOf, streak, currentPeriod } from '../lib/stats.js'
 import { REMINDER_OPTIONS } from '../store/defaults.js'
+import { listen, voiceErrorMessage, voiceSupported } from '../services/voice.js'
 
 // ── A single item in a list ─────────────────────────────────────────────────
 
@@ -544,80 +545,142 @@ export function parsedToFields(parsed, settings) {
   }
 }
 
-export function useParser(text, { date, recurring = false } = {}) {
+export function useParser(text, { date, recurring = false, spoken = false } = {}) {
   const { settings } = useStore()
   return useMemo(() => {
-    const parsed = parseQuick(text, { areas: AREAS, dayFirst: localeDayFirst(), defaultDuration: settings.defaultDuration, recurring })
+    const parsed = parseQuick(text, { areas: AREAS, dayFirst: localeDayFirst(), defaultDuration: settings.defaultDuration, recurring, spoken })
     if (date && !parsed.hasDate) parsed.date = date
     return parsed
-  }, [text, date, recurring, settings.defaultDuration])
+  }, [text, date, recurring, spoken, settings.defaultDuration])
 }
 
-export function QuickAdd({ open, onClose, date, text: initialText = '' }) {
+export function QuickAdd({ open, onClose, date, text: initialText = '', voice = false }) {
   const { settings } = useStore()
   const [text, setText] = useState(initialText)
-  const parsed = useParser(text, { date })
+  const [spoken, setSpoken] = useState(false)
+  const [listening, setListening] = useState(false)
+  const [heard, setHeard] = useState('')
+  const [voiceError, setVoiceError] = useState('')
+  const stop = useRef(null)
+  const parsed = useParser(text, { date, spoken })
 
-  function add() {
-    if (!parsed.title) return
-    const fields = parsedToFields(parsed, settings)
-    const id = addItem({ ...fields, source: 'quick' })
-    toast(`Added “${parsed.title}” · ${fmtRelative(parsed.date)}${parsed.start ? ` ${fmtTime(parsed.start)}` : ''}`, { action: 'Undo', onAction: () => deleteItem(id) })
+  function add(p = parsed, viaVoice = spoken) {
+    if (!p.title) return
+    const fields = parsedToFields(p, settings)
+    const id = addItem({ ...fields, source: viaVoice ? 'voice' : 'quick' })
+    toast(`Added “${p.title}” · ${fmtRelative(p.date)}${p.start ? ` ${fmtTime(p.start)}` : ''}`, { action: 'Undo', onAction: () => deleteItem(id) })
     onClose()
   }
+
+  function startVoice() {
+    setVoiceError('')
+    setHeard('')
+    setListening(true)
+    navigator.vibrate?.(10)
+    stop.current = listen({
+      onText: setHeard,
+      onError: (code) => {
+        setListening(false)
+        setVoiceError(voiceErrorMessage(code))
+      },
+      onDone: (words) => {
+        setListening(false)
+        if (!words) return setVoiceError(voiceErrorMessage('no-speech'))
+        setText(words)
+        setSpoken(true)
+        const p = parseQuick(words, { areas: AREAS, dayFirst: localeDayFirst(), defaultDuration: settings.defaultDuration, spoken: true })
+        if (date && !p.hasDate) p.date = date
+        // Something with a clear name and a day/time goes straight in; otherwise let them check it.
+        if (p.title && p.recognized) add(p, true)
+      },
+    })
+  }
+
+  useEffect(() => {
+    if (open && voice && voiceSupported()) startVoice()
+    return () => stop.current?.()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!open) stop.current?.()
+  }, [open])
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title="Add to your plan"
+      title={listening ? 'Listening…' : 'Add to your plan'}
       footer={
         <>
           <button className="btn ghost" onClick={() => newItem({ ...parsedToFields(parsed, settings), title: parsed.title || text.trim() })}>
             More options
           </button>
           <span className="spacer" />
-          <button className="btn primary" onClick={add} disabled={!parsed.title}>
+          <button className="btn primary" onClick={() => add()} disabled={!parsed.title}>
             Add
           </button>
         </>
       }
     >
-      <form
-        className="stack"
-        style={{ gap: 12 }}
-        onSubmit={(e) => {
-          e.preventDefault()
-          add()
-        }}
-      >
-        <input
-          className="input quick-input"
-          placeholder="e.g. Yoga tomorrow 7am"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          data-autofocus
-          aria-label="Describe what to add"
-          enterKeyHint="done"
-          autoComplete="off"
-        />
-        {text.trim() ? (
-          <ParsedPreview parsed={parsed} />
-        ) : (
-          <div className="stack" style={{ gap: 8 }}>
-            <div className="small muted row-flex" style={{ gap: 6 }}>
-              <Sparkles size={14} /> Type naturally — dates, times, repeats and #areas are understood.
-            </div>
-            <div className="chips">
-              {EXAMPLES.map((ex) => (
-                <button key={ex} type="button" className="chip sm" onClick={() => setText(ex)}>
-                  {ex}
-                </button>
-              ))}
-            </div>
+      {listening ? (
+        <div className="voice-stage" aria-live="polite">
+          <button type="button" className="voice-orb listening" onClick={() => stop.current?.()} aria-label="Stop listening">
+            <Mic size={30} />
+          </button>
+          <p className="voice-heard">{heard || 'Say something like “Make an appointment for 4 pm today”'}</p>
+          <span className="tiny faint">Tap the mic when you’re done</span>
+        </div>
+      ) : (
+        <form
+          className="stack"
+          style={{ gap: 12 }}
+          onSubmit={(e) => {
+            e.preventDefault()
+            add()
+          }}
+        >
+          <div className="row-flex">
+            <input
+              className="input quick-input"
+              placeholder="e.g. Yoga tomorrow 7am"
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value)
+                setSpoken(false)
+              }}
+              {...(!voice ? { 'data-autofocus': true } : {})}
+              aria-label="Describe what to add"
+              enterKeyHint="done"
+              autoComplete="off"
+            />
+            {voiceSupported() && (
+              <button type="button" className="voice-btn" onClick={startVoice} aria-label="Speak instead">
+                <Mic size={22} />
+              </button>
+            )}
           </div>
-        )}
-      </form>
+          {voiceError && <p className="small" style={{ color: 'var(--danger)' }}>{voiceError}</p>}
+          {text.trim() ? (
+            <>
+              <ParsedPreview parsed={parsed} />
+              {spoken && !parsed.recognized && <p className="small muted">Check it looks right, then tap Add. You can edit the words above.</p>}
+            </>
+          ) : (
+            <div className="stack" style={{ gap: 8 }}>
+              <div className="small muted row-flex" style={{ gap: 6 }}>
+                <Sparkles size={14} /> {voiceSupported() ? 'Type or tap the mic and just say it. Dates, times, repeats and #areas are understood.' : 'Type naturally, or use your keyboard’s mic. Dates, times, repeats and #areas are understood.'}
+              </div>
+              <div className="chips">
+                {EXAMPLES.map((ex) => (
+                  <button key={ex} type="button" className="chip sm" onClick={() => setText(ex)}>
+                    {ex}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </form>
+      )}
     </Sheet>
   )
 }

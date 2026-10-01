@@ -38,6 +38,26 @@ describe('parseQuick', () => {
     expect(p('Therapy Tuesday 5pm').repeat).toBe(null)
   })
 
+  it.each([
+    ['make an appointment for 4 pm today', { title: 'Appointment', date: today, start: '16:00' }],
+    ['Make an appointment for 4 p.m. today.', { title: 'Appointment', start: '16:00' }],
+    ['schedule a meeting with Sam tomorrow at 3', { title: 'Meeting with Sam', date: '2026-10-02', start: '15:00' }],
+    ['I have a doctor appointment Thursday at 10 a.m.', { title: 'Doctor appointment', start: '10:00' }],
+    ['remind me to call mom at five', { title: 'Call mom', start: '17:00' }],
+    ['haircut next Tuesday at four thirty pm', { title: 'Haircut', date: '2026-10-06', start: '16:30' }],
+    ["dinner Saturday 8 o'clock p.m.", { title: 'Dinner', date: '2026-10-03', start: '20:00' }],
+    ['Hey Cadence, can you add pick up the kids at half past three please', { title: 'Pick up the kids', start: '15:30' }],
+    ['I need to pay rent on the first every month', { title: 'Pay rent', repeat: { freq: 'monthly' } }],
+    ['add Book club Wednesday at seven p.m.', { title: 'Book club', date: '2026-10-07', start: '19:00' }],
+  ])('understands speech: %s', (text, expected) => {
+    expect(p(text, { spoken: true })).toMatchObject(expected)
+  })
+
+  it('only strips request words from speech, not typed titles', () => {
+    expect(p('Book club Wednesday').title).toBe('Book club')
+    expect(p('Plan the week Sunday').title).toBe('Plan the week')
+  })
+
   it('leaves plain text alone', () => {
     expect(p('Read 2-3 pages')).toMatchObject({ title: 'Read 2-3 pages', start: null, recognized: false })
     expect(p('Call 555-1234 about car')).toMatchObject({ title: 'Call 555-1234 about car', start: null })
