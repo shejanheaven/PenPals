@@ -185,7 +185,7 @@ def test_gemini_request_and_parse(monkeypatch, tmp_path):
     monkeypatch.setattr(llm.requests, "post", fake_post)
     s = settings(tmp_path, GEMINI_API_KEY="g-key")
     writer = llm.ScriptLLM(s)
-    assert writer.describe() == "gemini"
+    assert writer.describe() == "gemini -> pollinations"
     out = planner.write_scripts(writer, 1, ["Kaaba"], [])
     assert out[0]["title"] == "The Kaaba Before Islam"
     assert out[0]["hashtags"] == ["#Islam", "#Quran"]
@@ -208,11 +208,11 @@ def test_openai_compatible_fallback_chain(monkeypatch, tmp_path):
     s = settings(tmp_path, GROQ_API_KEY="x", CLOUDFLARE_ACCOUNT_ID="acc",
                  CLOUDFLARE_API_TOKEN="tok")
     writer = llm.ScriptLLM(s)
-    assert writer.describe() == "groq -> cloudflare"
+    assert writer.describe() == "groq -> cloudflare -> pollinations"
     out = planner.write_scripts(writer, 1, None, [])
     assert out[0]["script"].startswith("Before Islam")
     assert any("accounts/acc/ai/v1/chat/completions" in c for c in calls)
-    assert writer.describe() == "cloudflare"          # groq dropped after 401
+    assert writer.describe() == "cloudflare -> pollinations"   # groq dropped after 401
 
 
 def test_claude_provider_uses_structured_output(monkeypatch, tmp_path):
@@ -309,10 +309,86 @@ def test_higgsfield_cli_with_nsfw_retry(monkeypatch, tmp_path):
     s = settings(tmp_path, higgsfield_cli=str(launcher))
     s.image_provider = "higgsfield"
     gen = images.ImageGenerator(s)
-    assert gen.describe() == "higgsfield"
+    assert gen.describe() == "higgsfield -> pollinations"
     res = gen.generate_many([("warriors with swords at dusk", tmp_path / "h.png", 1, "scene 1")])
     assert res["scene 1"] == "higgsfield"
     assert counter.read_text() == "2"                  # flagged once, softened, succeeded
+
+
+def test_free_only_skips_paid_services(tmp_path):
+    from shorts.prompts import full_image_prompt
+    s = settings(tmp_path, ANTHROPIC_API_KEY="sk", ELEVENLABS_API_KEY="el",
+                 GEMINI_API_KEY="g", higgsfield_cli=str(tmp_path / "missing"))
+    assert llm.ScriptLLM(s).describe().startswith("claude")
+    assert voice.Narrator(s).describe().startswith("elevenlabs")
+    s.free_only = True
+    assert llm.ScriptLLM(s).describe() == "gemini -> pollinations"
+    assert voice.Narrator(s).describe().split(" -> ")[0] == "edge"
+    assert "higgsfield" not in images.ImageGenerator(s).describe()
+    full = full_image_prompt("A cave at night", "miniature")
+    assert images.split_image_prompt(full) == ("miniature", "A cave at night")
+
+
+def test_pollinations_free_no_account(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_get(url, params=None, headers=None, timeout=None, **kw):
+        seen.update(url=url, params=params, headers=headers)
+        return FakeResp(content=png_bytes(576, 1024), ctype="image/jpeg")
+
+    def fake_post(url, json=None, headers=None, timeout=None, **kw):
+        seen.update(text_url=url, text_headers=headers)
+        return FakeResp(payload={"choices": [{"message": {"content": __import__("json").dumps(
+            SCRIPT_REPLY)}, "finish_reason": "stop"}]})
+
+    monkeypatch.setattr(images.requests, "get", fake_get)
+    monkeypatch.setattr(llm.requests, "post", fake_post)
+    monkeypatch.setattr(images.PollinationsProvider, "FREE_GAP_SECONDS", 0.0)
+    s = settings(tmp_path, free_only=True)
+    gen = images.ImageGenerator(s)
+    assert gen.describe() == "pollinations"
+    res = gen.generate_many([("a mosque lamp", tmp_path / "p.png", 3, "scene 1")])
+    assert res["scene 1"] == "pollinations"
+    assert seen["url"].startswith("https://image.pollinations.ai/prompt/a%20mosque%20lamp")
+    assert seen["params"]["nologo"] == "true" and not seen["headers"]
+    out = planner.write_scripts(llm.ScriptLLM(s), 1, None, [])
+    assert out[0]["title"] == "The Kaaba Before Islam"
+    assert seen["text_url"] == "https://text.pollinations.ai/openai"
+    assert seen["text_headers"] == {}
+
+    def refused(url, **kw):
+        return FakeResp(402, {"error": "sign up"})
+    monkeypatch.setattr(images.requests, "get", refused)
+    gen = images.ImageGenerator(s)
+    res = gen.generate_many([("x", tmp_path / "q.png", 3, "scene 2")])
+    assert isinstance(res["scene 2"], Exception) and "pollinations" in gen._dead
+
+
+def test_local_gpu_provider_prompt_split(monkeypatch, tmp_path):
+    from shorts.prompts import full_image_prompt
+    calls = {}
+
+    class FakePipe:
+        def __call__(self, **kw):
+            calls.update(kw)
+            return types.SimpleNamespace(images=[Image.new("RGB", (768, 1344), (90, 60, 30))])
+
+    fake_torch = types.SimpleNamespace(Generator=lambda device: types.SimpleNamespace(
+        manual_seed=lambda seed: ("gen", seed)))
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setattr(images.LocalProvider, "available", lambda self: True)
+    monkeypatch.setattr(images.LocalProvider, "_get_pipe", lambda self: FakePipe())
+    s = settings(tmp_path, free_only=True)
+    s.image_provider = "local"
+    gen = images.ImageGenerator(s)
+    assert gen.describe() == "local -> pollinations"
+    prompt = full_image_prompt("A whale in the deep sea", "fresco")
+    res = gen.generate_many([(prompt, tmp_path / "l.png", 5, "scene 1")])
+    assert res["scene 1"] == "local"
+    assert calls["prompt"] == "A whale in the deep sea"
+    assert calls["prompt_2"].startswith("Renaissance religious fresco painting")
+    assert calls["num_inference_steps"] == 4 and calls["guidance_scale"] == 0
+    assert (calls["width"], calls["height"]) == (768, 1344)
 
 
 # ----------------------------------------------------------------- voices

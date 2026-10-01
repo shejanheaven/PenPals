@@ -24,9 +24,13 @@ def _get(url: str, **kw) -> requests.Response:
 
 
 def run_checks(s: Settings) -> int:
+    if s.free_only:
+        print("\nFREE_ONLY=true: only free services will be used.")
     print("\nScript writing")
     k = s.key
-    if k("ANTHROPIC_API_KEY"):
+    if s.free_only:
+        _line(None, "claude", "skipped (FREE_ONLY=true)")
+    elif k("ANTHROPIC_API_KEY"):
         try:
             import anthropic
             anthropic.Anthropic(api_key=k("ANTHROPIC_API_KEY")).models.retrieve(s.anthropic_model)
@@ -79,7 +83,9 @@ def run_checks(s: Settings) -> int:
     print("\nImages")
     gen = ImageGenerator(s)
     hf = next((p for p in gen.providers if p.name == "higgsfield"), None)
-    if hf:
+    if s.free_only:
+        _line(None, "higgsfield", "skipped (FREE_ONLY=true)")
+    elif hf:
         try:
             status = hf.account_status()  # type: ignore[attr-defined]
             ok = "credits" in status.lower() and "expired" not in status.lower()
@@ -87,11 +93,25 @@ def run_checks(s: Settings) -> int:
         except Exception as exc:  # noqa: BLE001
             _line(False, "higgsfield", str(exc)[:120])
     else:
-        _line(None, "higgsfield", "CLI not found (npm install -g @higgsfield/cli)")
+        _line(None, "higgsfield", "CLI not found (paid, optional)")
+    local = any(p.name == "local" for p in gen.providers)
+    _line(True if local else None, "local GPU",
+          "ready - free and unlimited" if local else
+          "not set up (NVIDIA cards: run setup-local-images.bat)")
+    try:
+        r = requests.get("https://image.pollinations.ai/prompt/test", timeout=60,
+                         params={"width": 64, "height": 64, "nologo": "true", "seed": 1})
+        ok = r.ok and r.headers.get("content-type", "").startswith("image/")
+        _line(ok, "pollinations", "free images without an account work" if ok else
+              f"HTTP {r.status_code} {r.text[:80]}")
+    except requests.RequestException as exc:
+        _line(False, "pollinations", str(exc)[:120])
     print(f"  order used: {gen.describe()}")
 
     print("\nVoice")
-    if k("ELEVENLABS_API_KEY"):
+    if s.free_only:
+        _line(None, "elevenlabs", "skipped (FREE_ONLY=true)")
+    elif k("ELEVENLABS_API_KEY"):
         try:
             r = _get("https://api.elevenlabs.io/v1/user/subscription",
                      headers={"xi-api-key": k("ELEVENLABS_API_KEY")})

@@ -203,7 +203,10 @@ class Pipeline:
         ok = [i for i in range(1, len(scenes) + 1)
               if (img_dir / f"scene_{i:02d}.png").exists() and i not in failed]
         if not ok:
-            raise RuntimeError("Every scene image failed - see the messages above.")
+            raise RuntimeError(
+                "Every scene image failed (see the messages above). Free fixes: run "
+                "setup-local-images.bat if you have an NVIDIA graphics card, or add free "
+                "Cloudflare keys to .env (README). Use --draft to preview meanwhile.")
         for i in failed:
             donor = min(ok, key=lambda k: abs(k - i))
             shutil.copyfile(img_dir / f"scene_{donor:02d}.png", img_dir / f"scene_{i:02d}.png")

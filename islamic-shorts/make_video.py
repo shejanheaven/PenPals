@@ -7,6 +7,7 @@ Examples
   python make_video.py "angels in the Quran" --count 3
   python make_video.py --script my_scripts.txt    # your own script(s)
   python make_video.py --plan plan.json           # plan written in Claude Code
+  python make_video.py --free "Hajj"              # only free services
   python make_video.py --draft "Hajj"             # free preview with stand-in art
   python make_video.py --project latest --redo 4,9    # regenerate scene 4 and 9
   python make_video.py --check                    # see which services are ready
@@ -40,6 +41,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                    help="free preview: stand-in images instead of AI art")
     p.add_argument("--plan-only", action="store_true",
                    help="write scripts and scene plans, then stop")
+    p.add_argument("--free", action="store_true",
+                   help="only use free services (skip Claude API, Higgsfield, ElevenLabs)")
     p.add_argument("--style", choices=["fresco", "miniature", "cinematic"])
     p.add_argument("--writer", help="script service: auto, claude, gemini, groq, "
                                     "cloudflare, pollinations")
@@ -75,6 +78,8 @@ def resolve_project(name: str, settings: Settings) -> Path:
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     settings = Settings.load()
+    if args.free:
+        settings.free_only = True
     if args.style:
         settings.style = args.style
     if args.writer:
@@ -100,7 +105,8 @@ def main(argv: list[str]) -> int:
     from shorts.util import log
 
     pipe = Pipeline(settings)
-    log(f"Services - script: {pipe.llm.describe()} | images: {pipe.images.describe()} | "
+    log(f"Services{' (free only)' if settings.free_only else ''} - script: "
+        f"{pipe.llm.describe()} | images: {pipe.images.describe()} | "
         f"voice: {pipe.narrator.describe()}")
 
     redo = {int(x) for x in args.redo.replace(" ", "").split(",") if x.isdigit()}

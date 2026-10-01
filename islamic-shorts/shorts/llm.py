@@ -7,7 +7,7 @@ the next ones are fallbacks if it fails):
   gemini       GEMINI_API_KEY         free tier (aistudio.google.com)
   groq         GROQ_API_KEY           free tier (console.groq.com)
   cloudflare   CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN   free daily allowance
-  pollinations POLLINATIONS_API_KEY   free starter credits
+  pollinations free without an account (rate limited), or POLLINATIONS_API_KEY
 
 You can also skip the API entirely: write the plan in Claude Code (see README) and
 run `make_video.py --plan plan.json`.
@@ -55,6 +55,7 @@ def extract_json(text: str) -> dict:
 
 class Provider:
     name = "base"
+    paid = False
 
     def __init__(self, settings: Settings):
         self.s = settings
@@ -68,6 +69,7 @@ class Provider:
 
 class ClaudeProvider(Provider):
     name = "claude"
+    paid = True
 
     def available(self) -> bool:
         if not self.s.key("ANTHROPIC_API_KEY"):
@@ -189,6 +191,12 @@ class OpenAICompatibleProvider(Provider):
     def model(self) -> str:
         raise NotImplementedError
 
+    def chat_url(self) -> str:
+        return self.base_url.rstrip("/") + "/chat/completions"
+
+    def headers(self) -> dict:
+        return {"Authorization": f"Bearer {self.api_key()}"}
+
     def generate_json(self, system: str, user: str, schema: dict) -> dict:
         body = {
             "model": self.model(),
@@ -200,8 +208,8 @@ class OpenAICompatibleProvider(Provider):
             "max_tokens": self.max_tokens,
             "response_format": {"type": "json_object"},
         }
-        headers = {"Authorization": f"Bearer {self.api_key()}"}
-        url = self.base_url.rstrip("/") + "/chat/completions"
+        headers = self.headers()
+        url = self.chat_url()
         resp = requests.post(url, json=body, headers=headers, timeout=300)
         if resp.status_code == 400 and "response_format" in resp.text:
             body.pop("response_format")
@@ -258,10 +266,18 @@ class PollinationsTextProvider(OpenAICompatibleProvider):
     base_url = "https://gen.pollinations.ai/v1"
 
     def available(self) -> bool:
-        return bool(self.s.key("POLLINATIONS_API_KEY"))
+        return True   # works without an account (rate limited)
 
     def api_key(self) -> str:
         return self.s.key("POLLINATIONS_API_KEY")
+
+    def chat_url(self) -> str:
+        if self.api_key():
+            return super().chat_url()
+        return "https://text.pollinations.ai/openai"   # free, no account
+
+    def headers(self) -> dict:
+        return super().headers() if self.api_key() else {}
 
     def model(self) -> str:
         return self.s.pollinations_text_model
@@ -287,6 +303,8 @@ class ScriptLLM:
                                  f"Use one of: auto, {', '.join(PROVIDERS)}")
             order.remove(choice)
             order.insert(0, choice)
+        if settings.free_only:
+            order = [n for n in order if not PROVIDERS[n].paid]
         self.providers = [p for p in (PROVIDERS[n](settings) for n in order) if p.available()]
 
     @property

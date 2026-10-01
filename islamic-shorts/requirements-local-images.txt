@@ -1,0 +1,7 @@
+# Free local image generation on an NVIDIA GPU (installed by setup-local-images.bat).
+# PyTorch itself comes from https://download.pytorch.org (CUDA build), see the .bat file.
+diffusers>=0.30
+transformers>=4.44
+accelerate>=0.33
+safetensors>=0.4
+huggingface_hub>=0.24

@@ -62,6 +62,7 @@ class Settings:
     height: int = 1920
     fps: int = 30
 
+    free_only: bool = False       # never use paid services (Claude API, Higgsfield, ElevenLabs)
     script_provider: str = "auto"
     image_provider: str = "auto"
     voice_provider: str = "auto"
@@ -90,6 +91,8 @@ class Settings:
     cloudflare_image_model: str = "@cf/black-forest-labs/flux-1-schnell"
     cloudflare_image_steps: int = 4
     pollinations_image_model: str = "tongyi-mai/z-image-turbo"
+    pollinations_free_model: str = "flux"
+    local_image_model: str = "sdxl-lightning"
 
     # Voice
     elevenlabs_voice_id: str = "nPczCjzI2devNBz1zQrb"  # "Brian" - deep, calm narrator
@@ -116,6 +119,7 @@ class Settings:
             p = Path(out).expanduser()
             s.output_dir = p if p.is_absolute() else APP_DIR / p
         s.fps = env_int("FPS", s.fps)
+        s.free_only = env_bool("FREE_ONLY", s.free_only)
         s.script_provider = env("SCRIPT_PROVIDER", s.script_provider).lower()
         s.image_provider = env("IMAGE_PROVIDER", s.image_provider).lower()
         s.voice_provider = env("VOICE_PROVIDER", s.voice_provider).lower()
@@ -140,6 +144,7 @@ class Settings:
         s.cloudflare_image_model = env("CLOUDFLARE_IMAGE_MODEL", s.cloudflare_image_model)
         s.cloudflare_image_steps = env_int("CLOUDFLARE_IMAGE_STEPS", s.cloudflare_image_steps)
         s.pollinations_image_model = env("POLLINATIONS_IMAGE_MODEL", s.pollinations_image_model)
+        s.pollinations_free_model = env("POLLINATIONS_FREE_MODEL", s.pollinations_free_model)
 
         s.elevenlabs_voice_id = env("ELEVENLABS_VOICE_ID", s.elevenlabs_voice_id)
         s.elevenlabs_model = env("ELEVENLABS_MODEL", s.elevenlabs_model)

@@ -3,9 +3,14 @@
 Providers, tried in this order when IMAGE_PROVIDER=auto:
 
   higgsfield   your Higgsfield CLI (GPT Image 2, true 9:16) - uses Higgsfield credits
+  local        free, unlimited, on your own NVIDIA graphics card (SDXL-Lightning;
+               setup-local-images.bat installs it, ~12 GB one-time download)
   cloudflare   Workers AI FLUX.1 schnell - free daily allowance (square images,
                the renderer pans across them to fill the vertical frame)
-  pollinations gen.pollinations.ai - free starter credits / cheap, true 9:16
+  pollinations free, no account needed (rate limited); with POLLINATIONS_API_KEY it
+               uses your account instead
+
+FREE_ONLY=true (or --free) skips the paid ones.
 
 If one provider fails for a scene, the next configured provider is tried.
 """
@@ -14,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import glob
+import importlib.util
 import io
 import os
 import re
@@ -30,6 +36,7 @@ import requests
 from PIL import Image
 
 from .config import Settings
+from .prompts import split_image_prompt, style_for
 from .util import FatalProviderError, RetryableError, is_windows, log, raise_for_http, retry
 
 
@@ -70,6 +77,7 @@ def save_image(data: bytes, out_path: Path) -> None:
 class ImageProvider:
     name = "base"
     workers = 3
+    paid = False
 
     def __init__(self, settings: Settings):
         self.s = settings
@@ -84,6 +92,7 @@ class ImageProvider:
 class HiggsfieldProvider(ImageProvider):
     name = "higgsfield"
     workers = 4
+    paid = True
 
     def __init__(self, settings: Settings):
         super().__init__(settings)
@@ -209,19 +218,44 @@ class CloudflareProvider(ImageProvider):
 
 class PollinationsProvider(ImageProvider):
     name = "pollinations"
-    workers = 2
+    _gate = threading.Lock()
+    _last_call = 0.0
+    FREE_GAP_SECONDS = 6.0
 
     def available(self) -> bool:
-        return bool(self.s.key("POLLINATIONS_API_KEY"))
+        return True   # works without an account (rate limited)
+
+    @property
+    def workers(self) -> int:  # type: ignore[override]
+        return 2 if self.s.key("POLLINATIONS_API_KEY") else 1
 
     def generate(self, prompt: str, seed: int) -> bytes:
-        url = "https://gen.pollinations.ai/image/" + quote(prompt[:1800], safe="")
-        params = {"model": self.s.pollinations_image_model, "width": 1088, "height": 1920,
-                  "seed": seed}
-        resp = requests.get(url, params=params, timeout=240,
-                            headers={"Authorization": f"Bearer {self.s.key('POLLINATIONS_API_KEY')}"})
-        if resp.status_code == 402:
-            raise FatalProviderError("Pollinations: out of credits")
+        key = self.s.key("POLLINATIONS_API_KEY")
+        if key:
+            url = "https://gen.pollinations.ai/image/" + quote(prompt[:1800], safe="")
+            params = {"model": self.s.pollinations_image_model, "width": 1088,
+                      "height": 1920, "seed": seed}
+            resp = requests.get(url, params=params, timeout=240,
+                                headers={"Authorization": f"Bearer {key}"})
+            if resp.status_code == 402:
+                raise FatalProviderError("Pollinations: out of credits")
+        else:
+            # Free no-account endpoint: one request at a time, a few seconds apart.
+            with PollinationsProvider._gate:
+                wait = PollinationsProvider._last_call + self.FREE_GAP_SECONDS - time.time()
+                if wait > 0:
+                    time.sleep(wait)
+                PollinationsProvider._last_call = time.time()
+            url = "https://image.pollinations.ai/prompt/" + quote(prompt[:1500], safe="")
+            params = {"width": 1080, "height": 1920, "seed": seed, "nologo": "true",
+                      "private": "true", "enhance": "false",
+                      "model": self.s.pollinations_free_model}
+            resp = requests.get(url, params=params, timeout=300)
+            if resp.status_code in (401, 402, 403):
+                raise FatalProviderError(
+                    "Pollinations no longer allows free use without an account "
+                    f"(HTTP {resp.status_code}). Add a POLLINATIONS_API_KEY or use another "
+                    "image service.")
         raise_for_http(resp, "Pollinations")
         if not resp.headers.get("content-type", "").startswith("image/"):
             raise RuntimeError(f"Pollinations returned {resp.headers.get('content-type')}: "
@@ -229,8 +263,75 @@ class PollinationsProvider(ImageProvider):
         return resp.content
 
 
+class LocalProvider(ImageProvider):
+    """Free, unlimited images on your own NVIDIA GPU with SDXL-Lightning (4 steps).
+    Models download once from Hugging Face (~12 GB) into the normal HF cache."""
+
+    name = "local"
+    workers = 1
+    _pipe = None
+    _load_lock = threading.Lock()
+    _run_lock = threading.Lock()
+    BASE = "stabilityai/stable-diffusion-xl-base-1.0"
+    LIGHTNING = ("ByteDance/SDXL-Lightning", "sdxl_lightning_4step_unet.safetensors")
+
+    def available(self) -> bool:
+        if not all(importlib.util.find_spec(m) for m in ("torch", "diffusers", "transformers")):
+            return False
+        try:
+            import torch
+            return bool(torch.cuda.is_available())
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _get_pipe(self):
+        with LocalProvider._load_lock:
+            if LocalProvider._pipe is not None:
+                return LocalProvider._pipe
+            import torch
+            from diffusers import (EulerDiscreteScheduler, StableDiffusionXLPipeline,
+                                   UNet2DConditionModel)
+            from huggingface_hub import hf_hub_download
+            from safetensors.torch import load_file
+
+            log("  Loading the free local image model (the first time downloads ~12 GB)...")
+            unet = UNet2DConditionModel.from_pretrained(
+                self.BASE, subfolder="unet", variant="fp16", torch_dtype=torch.float16)
+            unet.load_state_dict(load_file(hf_hub_download(*self.LIGHTNING)))
+            pipe = StableDiffusionXLPipeline.from_pretrained(
+                self.BASE, unet=unet, torch_dtype=torch.float16, variant="fp16")
+            pipe.scheduler = EulerDiscreteScheduler.from_config(
+                pipe.scheduler.config, timestep_spacing="trailing")
+            vram_gb = torch.cuda.get_device_properties(0).total_memory / 2**30
+            if vram_gb < 11:
+                pipe.enable_model_cpu_offload()   # fits 6-10 GB cards
+            else:
+                pipe.to("cuda")
+            pipe.set_progress_bar_config(disable=True)
+            LocalProvider._pipe = pipe
+            log(f"  Local image model ready on {torch.cuda.get_device_name(0)} "
+                f"({vram_gb:.0f} GB)")
+            return pipe
+
+    def generate(self, prompt: str, seed: int) -> bytes:
+        import torch
+
+        style_name, body = split_image_prompt(prompt)
+        short = style_for(style_name)["short"]
+        pipe = self._get_pipe()
+        with LocalProvider._run_lock:
+            image = pipe(prompt=body, prompt_2=f"{short}, {body}",
+                         num_inference_steps=4, guidance_scale=0,
+                         width=768, height=1344,
+                         generator=torch.Generator("cpu").manual_seed(seed)).images[0]
+        buf = io.BytesIO()
+        image.save(buf, "PNG")
+        return buf.getvalue()
+
+
 PROVIDERS = {
     "higgsfield": HiggsfieldProvider,
+    "local": LocalProvider,
     "cloudflare": CloudflareProvider,
     "pollinations": PollinationsProvider,
 }
@@ -247,6 +348,8 @@ class ImageGenerator:
             order.remove(choice)
             order.insert(0, choice)
         self.s = settings
+        if settings.free_only:
+            order = [n for n in order if not PROVIDERS[n].paid]
         self.providers = [p for p in (PROVIDERS[n](settings) for n in order) if p.available()]
         self._dead: set[str] = set()
         self._lock = threading.Lock()

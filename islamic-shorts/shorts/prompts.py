@@ -221,6 +221,9 @@ STYLES = {
                    "shading, realistic anatomy, elegant flowing robes, stone arches, "
                    "divine light beams, cinematic composition, museum-quality sacred "
                    "artwork, highly detailed, no text, no letters, no watermark"),
+        "short": ("Renaissance religious fresco painting, Leonardo da Vinci style, cracked "
+                  "plaster texture, aged pigments, golden candlelight, chiaroscuro, sfumato, "
+                  "sacred Islamic atmosphere, masterpiece"),
     },
     "miniature": {
         "label": "Persian / Ottoman manuscript miniature",
@@ -231,6 +234,8 @@ STYLES = {
                    "ornate geometric borders, aged parchment texture, museum "
                    "manuscript quality, highly detailed, no text, no letters, no "
                    "watermark"),
+        "short": ("Persian miniature painting, illuminated manuscript, gold leaf, lapis blue "
+                  "and vermilion, delicate brushwork, intricate, masterpiece"),
     },
     "cinematic": {
         "label": "Photoreal epic historical film",
@@ -240,6 +245,8 @@ STYLES = {
                    "warm golden light against deep shadows, rich film color grading, "
                    "photorealistic, highly detailed, no text, no letters, no "
                    "watermark"),
+        "short": ("cinematic film still, epic historical drama, volumetric god rays, warm "
+                  "golden light, photorealistic, masterpiece"),
     },
 }
 
@@ -252,6 +259,15 @@ def full_image_prompt(scene_prompt: str, style_name: str) -> str:
     style = style_for(style_name)
     body = scene_prompt.strip().rstrip(".")
     return f"{style['prefix']}. {body}. {style['suffix']}."
+
+
+def split_image_prompt(full: str) -> tuple[str, str]:
+    """Inverse of full_image_prompt: (style name, scene description)."""
+    for name, style in STYLES.items():
+        head, tail = style["prefix"] + ". ", ". " + style["suffix"] + "."
+        if full.startswith(head) and full.endswith(tail):
+            return name, full[len(head):-len(tail)]
+    return "fresco", full
 
 
 def scripts_request(count: int, topics: list[str] | None, avoid: list[str],

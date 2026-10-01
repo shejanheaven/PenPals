@@ -62,6 +62,7 @@ def estimate_words(text: str, start: float, end: float) -> list[dict]:
 
 class VoiceProvider:
     name = "base"
+    paid = False
 
     def __init__(self, settings: Settings):
         self.s = settings
@@ -75,6 +76,7 @@ class VoiceProvider:
 
 class ElevenLabsVoice(VoiceProvider):
     name = "elevenlabs"
+    paid = True
 
     def available(self) -> bool:
         return bool(self.s.key("ELEVENLABS_API_KEY"))
@@ -229,6 +231,8 @@ class Narrator:
                                  f"Use one of: auto, {', '.join(PROVIDERS)}")
             order.remove(choice)
             order.insert(0, choice)
+        if settings.free_only:
+            order = [n for n in order if not PROVIDERS[n].paid]
         self.providers = [p for p in (PROVIDERS[n](settings) for n in order) if p.available()]
 
     def describe(self) -> str:

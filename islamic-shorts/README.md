@@ -23,40 +23,30 @@ TikTok, YouTube Shorts). Each video goes through these steps in a single run:
 
 ## Which services it uses
 
-The app automatically uses the best service you have set up and falls back to the next
-one if a service fails.
+Out of the box everything is **free and needs no accounts or keys**. `FREE_ONLY=true`
+in `.env` (the default) guarantees no paid service is ever used.
 
-| Step | Free | Premium (used automatically if set up) |
+| Step | Free (default) | Paid upgrades (only when `FREE_ONLY=false`) |
 |---|---|---|
-| Script | **Google Gemini** (free key), Groq, Cloudflare, or **Claude Code** (no key, see below) | Claude API (`ANTHROPIC_API_KEY`) |
-| Images | **Cloudflare Workers AI** (about 100 images/day free, square images that the app pans across), Pollinations | **Higgsfield CLI, GPT Image 2** (true 9:16, best quality, uses your credits) |
-| Voice | **Microsoft Edge neural voices** (free, no account) | **ElevenLabs** (`ELEVENLABS_API_KEY`) |
-| Panning, captions, editing | Built in (FFmpeg), always free | – |
+| Script | Already-written plans, **Claude Code** (no key, see below), free **Pollinations** (no account), or free keys for Gemini / Groq / Cloudflare | Claude API |
+| Images | **Your NVIDIA graphics card** (SDXL-Lightning, unlimited, run `setup-local-images.bat` once), free **Pollinations** (no account, rate limited), or free **Cloudflare** keys (~100/day) | Higgsfield CLI, GPT Image 2 |
+| Voice | **Microsoft Edge neural voices** (no account) | ElevenLabs |
+| Panning, captions, editing | Built in (FFmpeg) | – |
 
-**Recommendation:** use Higgsfield for images if you still have credits. It is the
-biggest quality difference, because free image models are noticeably weaker. The free
-Edge voice is good. ElevenLabs is a step up if you already pay for it. For scripts, the
-free Gemini tier or Claude Code both work well.
+Each step automatically uses the best free option that is available and falls back to
+the next one if a service fails.
 
 ## Setup (Windows, about 5 minutes)
 
 1. Install **Python 3.11 or newer** from https://www.python.org/downloads/ and tick
    **"Add python.exe to PATH"**.
 2. Double-click **`setup.bat`**. It installs everything, including FFmpeg, and creates
-   a `.env` file.
-3. Open `.env` in Notepad and add at least:
-   - **Script:** `GEMINI_API_KEY`. Get a free key at https://aistudio.google.com/apikey.
-   - **Images:** pick one of these.
-     - **Higgsfield** (you already used it). Run `npm install -g @higgsfield/cli`, then
-       `higgsfield auth login`. Nothing goes in `.env`; the app finds it automatically.
-     - **Free Cloudflare:**
-       1. Sign up at https://dash.cloudflare.com.
-       2. Copy your **Account ID** from the Workers AI page into `CLOUDFLARE_ACCOUNT_ID`.
-       3. Go to *My Profile → API Tokens → Create Token → "Workers AI"* and put the token
-          in `CLOUDFLARE_API_TOKEN`.
-   - **Voice:** nothing needed (free Edge voice). Add `ELEVENLABS_API_KEY` to upgrade.
-4. Double-click **`setup.bat`** again, or run `python make_video.py --check`, to see a
-   green **OK** next to each working service.
+   a `.env` file. Nothing in `.env` has to be filled in.
+3. **Optional, recommended if you have an NVIDIA graphics card:** double-click
+   **`setup-local-images.bat`**. Images are then made on your own PC: free, unlimited,
+   and no waiting on anyone's servers. The first video downloads the image model once
+   (about 12 GB).
+4. Run `python make_video.py --check` (setup.bat does this) to see which services work.
 
 Then double-click **`Make Video.bat`**, type a topic (or leave it empty), and choose how
 many videos. The finished videos appear in the `output` folder.
@@ -78,7 +68,8 @@ make_video.py --project latest --redo 4,9                             regenerate
 make_video.py --project latest --revoice                              record the voice again
 make_video.py --project latest --rerender --no-particles              re-render only, no dust
 make_video.py --style miniature "the Night Journey"                   Persian-miniature look
-make_video.py --images cloudflare --voice edge "Jannah"               force the free services
+make_video.py --free "Jannah"                                         only free services
+make_video.py --images local "Jannah"                                 force the GPU images
 make_video.py --check                                                 test your setup
 ```
 
@@ -156,10 +147,15 @@ video first. You can always upload by hand using `post.txt`.
 ## Troubleshooting
 
 - **Run `--check` first.** It tests every key and service.
-- **"No image service is configured":** log in to Higgsfield or add the Cloudflare
-  keys. Use `--draft` meanwhile.
-- **Higgsfield says it is not logged in:** run `higgsfield auth login` again. Tokens
-  expire.
+- **Every image failed:** the free no-account Pollinations service may be busy or may
+  have changed its rules. Run `setup-local-images.bat` (NVIDIA cards) or add free
+  Cloudflare keys, then run `--project latest` to finish the video. Use `--draft`
+  meanwhile.
+- **Local images are slow or run out of memory:** cards under 11 GB automatically
+  offload part of the model to system memory. Close games or other GPU apps while
+  rendering.
+- **Higgsfield says it is not logged in (paid mode):** run `higgsfield auth login`
+  again. Tokens expire.
 - **Cloudflare "daily allowance used up":** the free tier resets at 00:00 UTC. The app
   automatically moves on to your next image service.
 - **A scene image was flagged:** the app retries once with a gentler prompt, then tries
