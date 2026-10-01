@@ -1,0 +1,6 @@
+# Claude for script writing (needs ANTHROPIC_API_KEY) - setup.bat installs this too
+anthropic>=1.11
+
+# Offline voice fallback (no internet needed after a one-time ~115 MB model download)
+kokoro-onnx>=0.4
+soundfile>=0.12

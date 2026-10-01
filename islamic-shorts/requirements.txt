@@ -1,0 +1,7 @@
+# Installed by setup.bat (all free)
+requests>=2.31
+numpy>=1.26
+opencv-python-headless>=4.9
+Pillow>=10.1
+imageio-ffmpeg>=0.5
+edge-tts>=7.0
