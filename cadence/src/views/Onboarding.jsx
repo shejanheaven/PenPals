@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { ArrowLeft, Bell, Check as CheckIcon, Share, SquarePlus } from 'lucide-react'
 import { useStore } from '../store/store.js'
-import { addGoal, addItems, updateProfile } from '../store/actions.js'
-import { AreaChips, Check } from '../components/ui.jsx'
+import { addGoal, addItems, replaceState, updateProfile } from '../store/actions.js'
+import { IS_PREVIEW } from '../preview.js'
+import { AreaChips, Check, toast } from '../components/ui.jsx'
 import { Logo } from '../components/Logo.jsx'
 import { AREAS, areaColor } from '../lib/areas.js'
 import { todayKey, yearOf } from '../lib/dates.js'
@@ -143,7 +144,9 @@ export default function Onboarding() {
           <>
             <h1 className="display">Stay on rhythm</h1>
             <p className="muted">A nudge before each block, a morning check-in and an evening wind-down. Calm, never naggy.</p>
-            {needsInstallForNotifications() ? (
+            {IS_PREVIEW ? (
+              <p className="small muted">Reminders turn on once Cadence is installed from your own web address. This preview can’t send notifications.</p>
+            ) : needsInstallForNotifications() ? (
               <div className="card pad stack" style={{ gap: 10 }}>
                 <strong style={{ fontWeight: 600 }}>On iPhone, add Cadence to your Home Screen first</strong>
                 <ol className="steps">
@@ -176,6 +179,18 @@ export default function Onboarding() {
           </button>
         )}
         <span className="spacer" />
+        {id === 'welcome' && IS_PREVIEW && (
+          <button
+            className="btn ghost lg"
+            onClick={async () => {
+              const { sampleState } = await import('../store/sample.js')
+              replaceState(sampleState())
+              toast('Example plans loaded. Settings → Start fresh clears them.')
+            }}
+          >
+            Explore with examples
+          </button>
+        )}
         {id === 'year' && !goal.trim() && (
           <button className="btn ghost lg" onClick={next}>
             Skip

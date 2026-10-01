@@ -241,16 +241,18 @@ function GoalStrip({ state, horizon, period, title, emptyText }) {
           {goals.map((g) => {
             const p = goalProgress(state, g, ws)
             return (
-              <button key={g.id} className="row-flex" style={{ textAlign: 'left', width: '100%' }} onClick={() => openGoal(g.id)}>
-                <span className="area-dot" style={{ background: areaColor(g.area) }} />
-                <span className="grow" style={{ fontWeight: 550, textDecoration: g.status === 'done' ? 'line-through' : 'none', color: g.status === 'done' ? 'var(--text-3)' : undefined }}>
-                  {g.title}
+              <button key={g.id} className="stack" style={{ textAlign: 'left', width: '100%', gap: 6 }} onClick={() => openGoal(g.id)}>
+                <span className="row-flex" style={{ alignItems: 'baseline' }}>
+                  <span className="area-dot" style={{ background: areaColor(g.area), transform: 'translateY(-1px)' }} />
+                  <span className="grow" style={{ fontWeight: 550, textDecoration: g.status === 'done' ? 'line-through' : 'none', color: g.status === 'done' ? 'var(--text-3)' : undefined }}>
+                    {g.title}
+                  </span>
+                  <span className="tiny muted num" style={{ whiteSpace: 'nowrap' }}>
+                    {p.label}
+                  </span>
                 </span>
-                <span style={{ width: 90 }}>
-                  <Bar value={p.fraction} thin color={areaColor(g.area)} />
-                </span>
-                <span className="tiny muted num" style={{ width: 92, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  {p.label}
+                <span style={{ paddingLeft: 18 }}>
+                  <Bar value={p.fraction} thin color={areaColor(g.area)} label={p.label} />
                 </span>
               </button>
             )

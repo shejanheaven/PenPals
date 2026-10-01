@@ -8,8 +8,12 @@ export const ACCENTS = {
   ink: { label: 'Ink', light: ['#3e4552', '#2b313b'], dark: ['#bec6d2', '#d5dbe4'] },
 }
 
+// When embedded by a host that sets its own theme (the preview), follow it.
+const hostTheme = typeof document !== 'undefined' ? document.documentElement.getAttribute('data-theme') : null
+
 export function resolveTheme(theme) {
   if (theme === 'light' || theme === 'dark') return theme
+  if (import.meta.env.VITE_PREVIEW === '1' && (hostTheme === 'light' || hostTheme === 'dark')) return hostTheme
   return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 

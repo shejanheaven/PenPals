@@ -18,6 +18,7 @@ import {
   captureEndpoint, cloudConfigured, getCaptureToken, pushConfigured, signIn, signOut, signUp, subscribePush, syncNow, unsubscribePush, useCloud,
 } from '../services/cloud.js'
 import { promptInstall, useInstallPrompt } from '../services/install.js'
+import { IS_PREVIEW } from '../preview.js'
 
 function Group({ title, children, note }) {
   return (
@@ -205,6 +206,16 @@ export default function Settings() {
 function InstallCard() {
   const prompt = useInstallPrompt()
   const { installHintDismissed } = device.use()
+  if (IS_PREVIEW) {
+    return (
+      <div className="card pad tint stack" style={{ gap: 6 }}>
+        <strong style={{ fontWeight: 600 }}>You’re trying the preview</strong>
+        <span className="small muted">
+          Plans you make here stay in this browser. Notifications, installing on your Home Screen, file downloads and sync work once Cadence runs from its own web address (one free Vercel deploy, see the README).
+        </span>
+      </div>
+    )
+  }
   if (isStandalone() || installHintDismissed) return null
   if (prompt) {
     return (
@@ -256,7 +267,8 @@ function NotificationsGroup() {
   const on = notifications && perm === 'granted'
 
   let sub = 'A nudge before things start, plus your check-ins'
-  if (needsInstallForNotifications()) sub = 'On iPhone, add Cadence to your Home Screen first (see above)'
+  if (IS_PREVIEW) sub = 'Available in your installed app, not in this preview'
+  else if (needsInstallForNotifications()) sub = 'On iPhone, add Cadence to your Home Screen first (see above)'
   else if (!notificationsSupported()) sub = 'This browser can’t show notifications — you’ll see reminders inside the app'
   else if (perm === 'denied') sub = 'Blocked in your browser’s site settings for Cadence'
 
@@ -560,6 +572,8 @@ function ImportCalendarButton() {
 
 function DataGroup() {
   const input = useRef(null)
+  const [armed, setArmed] = useState(false)
+  const disarm = useRef(null)
   return (
     <Group title="Your data" note="Backups include everything: plans, goals, journal and settings.">
       <Row
@@ -593,13 +607,19 @@ function DataGroup() {
       />
       <Row
         icon={RotateCcw}
-        title="Start fresh"
-        sub="Erase everything on this device"
+        title={armed ? 'Tap again to erase everything' : 'Start fresh'}
+        sub={armed ? 'Plans, goals and journal on this device. This can’t be undone.' : 'Erase everything on this device'}
         onClick={() => {
-          if (window.confirm('Erase all plans, goals and journal entries on this device? This cannot be undone.')) {
-            resetAll()
-            toast('Everything cleared')
+          if (!armed) {
+            setArmed(true)
+            clearTimeout(disarm.current)
+            disarm.current = setTimeout(() => setArmed(false), 5000)
+            return
           }
+          clearTimeout(disarm.current)
+          setArmed(false)
+          resetAll()
+          toast('Everything cleared')
         }}
       />
     </Group>
