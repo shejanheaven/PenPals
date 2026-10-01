@@ -16,7 +16,7 @@ export function initialState() {
     days: {},
     reviews: {},
     inbox: {},
-    profile: { name: '', wake: '07:00', sleep: '22:30', areas: [], onboarded: false, updatedAt: now },
+    profile: { name: '', wake: '07:00', sleep: '22:30', week: null, areas: [], onboarded: false, updatedAt: now },
     settings: {
       theme: 'system',
       accent: 'sage',
@@ -26,8 +26,10 @@ export function initialState() {
       defaultDuration: 60,
       notify: {
         morningOn: true,
+        morningAuto: true, // 15 min after that day's wake-up
         morning: '08:00',
         eveningOn: true,
+        eveningAuto: true, // an hour before that day's bedtime
         evening: '21:00',
         weeklyReview: true,
         pauses: false,

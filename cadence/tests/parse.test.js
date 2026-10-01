@@ -31,6 +31,13 @@ describe('parseQuick', () => {
     expect(p(text)).toMatchObject(expected)
   })
 
+  it('reads a run of days as a weekly repeat', () => {
+    expect(p('Gym Mon Wed Fri 6pm')).toMatchObject({ title: 'Gym', start: '18:00', repeat: { freq: 'weekly', days: [1, 3, 5] } })
+    expect(p('Class tue & thu 9-10:30am')).toMatchObject({ title: 'Class', start: '09:00', end: '10:30', repeat: { freq: 'weekly', days: [2, 4] } })
+    expect(p('Therapy Tuesday 5pm', { recurring: true })).toMatchObject({ title: 'Therapy', repeat: { freq: 'weekly', days: [2] } })
+    expect(p('Therapy Tuesday 5pm').repeat).toBe(null)
+  })
+
   it('leaves plain text alone', () => {
     expect(p('Read 2-3 pages')).toMatchObject({ title: 'Read 2-3 pages', start: null, recognized: false })
     expect(p('Call 555-1234 about car')).toMatchObject({ title: 'Call 555-1234 about car', start: null })

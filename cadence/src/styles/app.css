@@ -2664,3 +2664,36 @@ a {
   color: var(--accent-contrast);
   text-shadow: none;
 }
+
+/* ── Week rhythm editor ───────────────────────────────────────────────────── */
+
+.week-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 8px;
+}
+
+.week-times {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px 10px;
+}
+
+.week-times label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.week-times .input {
+  min-height: 40px;
+  padding: 6px 10px;
+}
+
+.repeat-list .item-row {
+  min-height: 52px;
+}

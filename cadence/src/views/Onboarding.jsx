@@ -1,29 +1,32 @@
-import { useState } from 'react'
-import { ArrowLeft, Bell, Check as CheckIcon, Share, SquarePlus } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { ArrowLeft, Bell, Check as CheckIcon, Plus, Repeat, Share, SquarePlus, X } from 'lucide-react'
 import { useStore } from '../store/store.js'
 import { addGoal, addItems, replaceState, updateProfile } from '../store/actions.js'
 import { IS_PREVIEW } from '../preview.js'
-import { AreaChips, Check, toast } from '../components/ui.jsx'
+import { AreaChips, Switch, toast } from '../components/ui.jsx'
+import { WeekEditor } from '../components/WeekEditor.jsx'
+import { ParsedPreview, parsedToFields, useParser } from '../components/items.jsx'
 import { Logo } from '../components/Logo.jsx'
 import { AREAS, areaColor } from '../lib/areas.js'
-import { todayKey, yearOf } from '../lib/dates.js'
+import { defaultWeek, workBlocks } from '../lib/rhythm.js'
+import { describeRepeat } from '../lib/recurrence.js'
+import { fmtRange, todayKey, yearOf } from '../lib/dates.js'
 import { uid } from '../lib/ids.js'
-import { routineTemplates } from '../store/defaults.js'
 import { enableNotifications, needsInstallForNotifications, notificationsSupported } from '../services/notifications.js'
 
-const STEPS = ['welcome', 'name', 'rhythm', 'year', 'routine', 'notify']
+const STEPS = ['welcome', 'name', 'week', 'regulars', 'year', 'notify']
 
 export default function Onboarding() {
-  const { profile } = useStore()
+  const { profile, settings } = useStore()
   const [step, setStep] = useState(0)
   const [name, setName] = useState(profile.name ?? '')
-  const [wake, setWake] = useState(profile.wake ?? '07:00')
-  const [sleep, setSleep] = useState(profile.sleep ?? '22:30')
+  const [week, setWeek] = useState(() => profile.week ?? defaultWeek(profile))
+  const [addWork, setAddWork] = useState(true)
+  const [regulars, setRegulars] = useState([])
   const [goal, setGoal] = useState('')
   const [goalArea, setGoalArea] = useState(null)
-  const [picked, setPicked] = useState(() => new Set(['intention', 'move', 'winddown']))
   const [notify, setNotify] = useState(null)
-  const templates = routineTemplates({ wake, sleep })
+  const blocks = workBlocks(week)
   const id = STEPS[step]
 
   const next = () => setStep((s) => Math.min(STEPS.length - 1, s + 1))
@@ -31,13 +34,11 @@ export default function Onboarding() {
 
   function finish() {
     const today = todayKey()
-    addItems(
-      templates
-        .filter((t) => picked.has(t.key))
-        .map((t) => ({ id: uid('it'), title: t.title, notes: '', date: today, start: t.start, end: t.end, area: t.area, goalId: null, repeat: t.repeat, reminder: t.reminder, source: 'template' })),
-    )
+    const work = addWork ? blocks.map((b) => ({ ...b, reminder: settings.defaultReminder })) : []
+    addItems([...work, ...regulars].map((f) => ({ notes: '', goalId: null, reminder: null, date: today, ...f, id: uid('it'), source: 'setup' })))
     if (goal.trim()) addGoal({ title: goal.trim(), horizon: 'year', period: yearOf(today), area: goalArea })
-    updateProfile({ name: name.trim(), wake, sleep, onboarded: true })
+    const first = week[1] ?? week[0]
+    updateProfile({ name: name.trim(), week, wake: first.wake, sleep: first.sleep, onboarded: true })
   }
 
   return (
@@ -78,26 +79,24 @@ export default function Onboarding() {
           </>
         )}
 
-        {id === 'rhythm' && (
+        {id === 'week' && (
           <>
-            <h1 className="display">Your natural rhythm</h1>
-            <p className="muted">Cadence shapes your day around when you wake and when you wind down — and won’t nudge you outside of it.</p>
-            <div className="list">
-              <label className="setting">
-                <span className="setting-text">
-                  <span className="setting-title">I usually wake up at</span>
+            <h1 className="display">What does your week look like?</h1>
+            <p className="muted">Set each day as it really is. Work days, wake-ups and bedtimes can all differ. Reminders and your day view follow these times.</p>
+            <WeekEditor value={week} onChange={setWeek} weekStart={settings.weekStart} />
+            {blocks.length > 0 && (
+              <div className="card pad row-flex" style={{ gap: 12 }}>
+                <span className="grow">
+                  <strong style={{ fontWeight: 600, display: 'block' }}>Put my work hours on my plan</strong>
+                  <span className="small muted">{blocks.map((b) => `${describeRepeat(b.repeat, todayKey())}, ${fmtRange(b.start, b.end)}`).join(' · ')}</span>
                 </span>
-                <input type="time" className="input" value={wake} onChange={(e) => e.target.value && setWake(e.target.value)} />
-              </label>
-              <label className="setting">
-                <span className="setting-text">
-                  <span className="setting-title">I like to be in bed by</span>
-                </span>
-                <input type="time" className="input" value={sleep} onChange={(e) => e.target.value && setSleep(e.target.value)} />
-              </label>
-            </div>
+                <Switch checked={addWork} onChange={setAddWork} label="Add work hours" />
+              </div>
+            )}
           </>
         )}
+
+        {id === 'regulars' && <Regulars items={regulars} onChange={setRegulars} settings={settings} />}
 
         {id === 'year' && (
           <>
@@ -107,35 +106,6 @@ export default function Onboarding() {
             <div className="field">
               <span className="label">Which part of life is it about?</span>
               <AreaChips value={goalArea} onChange={setGoalArea} areas={AREAS} />
-            </div>
-          </>
-        )}
-
-        {id === 'routine' && (
-          <>
-            <h1 className="display">Start with a gentle routine?</h1>
-            <p className="muted">Pick any that feel right. Edit or remove them anytime.</p>
-            <div className="list">
-              {templates.map((t) => {
-                const on = picked.has(t.key)
-                const toggle = () =>
-                  setPicked((p) => {
-                    const n = new Set(p)
-                    if (on) n.delete(t.key)
-                    else n.add(t.key)
-                    return n
-                  })
-                return (
-                  <div key={t.key} className="template" onClick={toggle} role="presentation" style={{ cursor: 'pointer' }}>
-                    <Check checked={on} color={areaColor(t.area)} onToggle={toggle} label={t.title} />
-                    <span className="grow">
-                      <span style={{ fontWeight: 550, display: 'block' }}>{t.title}</span>
-                      <span className="small muted">{t.hint}</span>
-                    </span>
-                    <span className="area-dot" style={{ background: areaColor(t.area) }} />
-                  </div>
-                )
-              })}
             </div>
           </>
         )}
@@ -191,7 +161,7 @@ export default function Onboarding() {
             Explore with examples
           </button>
         )}
-        {id === 'year' && !goal.trim() && (
+        {((id === 'year' && !goal.trim()) || (id === 'regulars' && regulars.length === 0)) && (
           <button className="btn ghost lg" onClick={next}>
             Skip
           </button>
@@ -207,5 +177,84 @@ export default function Onboarding() {
         )}
       </div>
     </div>
+  )
+}
+
+const SUGGESTIONS = ['Gym', 'Run', 'Meditate', 'Read 20 pages', 'Call family', 'Meal prep', 'Class', 'Therapy']
+
+// Things that repeat, entered the way you'd say them.
+function Regulars({ items, onChange, settings }) {
+  const [text, setText] = useState('')
+  const input = useRef(null)
+  const parsed = useParser(text, { recurring: true })
+
+  function add() {
+    if (!parsed.title) return
+    onChange([...items, parsedToFields(parsed, settings)])
+    setText('')
+    input.current?.focus()
+  }
+
+  return (
+    <>
+      <h1 className="display">What else repeats in your week?</h1>
+      <p className="muted">Classes, workouts, calls, chores. Type it the way you’d say it, with days and times, like “Gym Mon Wed Fri 6pm” or “Call mom every Sunday”. Add only what’s real; you can skip this.</p>
+      <form
+        className="row-flex"
+        onSubmit={(e) => {
+          e.preventDefault()
+          add()
+        }}
+      >
+        <input ref={input} className="input" style={{ fontSize: 17, minHeight: 50 }} placeholder="e.g. Yoga Tue Thu 7am" value={text} onChange={(e) => setText(e.target.value)} autoFocus enterKeyHint="done" aria-label="Something that repeats" />
+        <button className="btn primary" style={{ height: 50 }} disabled={!parsed.title} aria-label="Add">
+          <Plus size={18} />
+        </button>
+      </form>
+      {text.trim() ? (
+        <ParsedPreview parsed={parsed} />
+      ) : (
+        <div className="chips">
+          {SUGGESTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className="chip sm"
+              onClick={() => {
+                setText(`${s} `)
+                input.current?.focus()
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+      {text.trim() && !parsed.repeat && parsed.title && <p className="tiny faint">Tip: add days like “every Tuesday” or “Mon Wed” to make it repeat.</p>}
+      {items.length > 0 && (
+        <div className="list repeat-list">
+          {items.map((it, i) => (
+            <div key={i} className="item-row">
+              <span className="area-dot" style={{ background: areaColor(it.area) }} />
+              <span className="item-body">
+                <span className="item-title">{it.title}</span>
+                <span className="item-meta">
+                  {it.repeat && (
+                    <span>
+                      <Repeat size={12} />
+                      {describeRepeat(it.repeat, it.date)}
+                    </span>
+                  )}
+                  <span>{fmtRange(it.start, it.end)}</span>
+                </span>
+              </span>
+              <button className="icon-btn sm" onClick={() => onChange(items.filter((_, j) => j !== i))} aria-label={`Remove ${it.title}`}>
+                <X size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   )
 }

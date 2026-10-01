@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Bell, CalendarClock, CalendarSync, ChevronDown, Clock, Cloud, CloudOff, Copy, Download, LogOut, Mail, MessageSquareText, Monitor, Moon,
-  Palette, RefreshCw, RotateCcw, Share, Share2, Smartphone, SquarePlus, Sunrise, Sunset, Timer, Upload, User, Webhook, Wind,
+  Bell, CalendarClock, CalendarSync, ChevronDown, Clock, Cloud, CloudOff, Copy, Download, LogOut, Mail, MessageSquareText, Monitor, Moon, Palette, Plus, RefreshCw, RotateCcw, Share, Share2, Smartphone, SquarePlus, Sunrise, Timer, Upload, User, Webhook, Wind,
 } from 'lucide-react'
 import { device, getState, useStore } from '../store/store.js'
 import { addItems, replaceState, resetAll, updateProfile, updateSettings } from '../store/actions.js'
@@ -11,6 +10,8 @@ import { downloadFile, fromICS, toICS } from '../lib/ics.js'
 import { mergeStates } from '../lib/merge.js'
 import { todayKey } from '../lib/dates.js'
 import { REMINDER_OPTIONS } from '../store/defaults.js'
+import { WeekEditor } from '../components/WeekEditor.jsx'
+import { defaultWeek, workBlocks } from '../lib/rhythm.js'
 import {
   disableNotifications, enableNotifications, isIOS, isStandalone, needsInstallForNotifications, notificationsSupported, permission, sendTest,
 } from '../services/notifications.js'
@@ -74,23 +75,51 @@ export default function Settings() {
         <Row icon={User} title="Name" htmlFor="set-name">
           <input id="set-name" className="input" style={{ maxWidth: 170 }} value={profile.name} placeholder="Your name" onChange={(e) => updateProfile({ name: e.target.value })} />
         </Row>
-        <Row icon={Sunrise} title="Wake up" sub="Your day view starts here" htmlFor="set-wake">
-          <input id="set-wake" type="time" className="input" value={profile.wake} onChange={(e) => e.target.value && updateProfile({ wake: e.target.value })} />
-        </Row>
-        <Row icon={Sunset} title="Wind down" sub="Evening is protected time" htmlFor="set-sleep">
-          <input id="set-sleep" type="time" className="input" value={profile.sleep} onChange={(e) => e.target.value && updateProfile({ sleep: e.target.value })} />
-        </Row>
       </Group>
+
+      <section className="section">
+        <div className="section-head">
+          <span className="eyebrow">Your week</span>
+          {workBlocks(profile.week).length > 0 && (
+            <button
+              className="btn ghost sm"
+              onClick={() => {
+                const blocks = workBlocks(profile.week)
+                addItems(blocks.map((b) => ({ ...b, notes: '', goalId: null, date: todayKey(), reminder: settings.defaultReminder, source: 'setup' })))
+                toast(`Added ${blocks.length} work ${blocks.length === 1 ? 'block' : 'blocks'} to your plan`)
+              }}
+            >
+              <Plus size={14} /> Add work hours to plan
+            </button>
+          )}
+        </div>
+        <WeekEditor value={profile.week ?? defaultWeek(profile)} onChange={(week) => updateProfile({ week })} weekStart={settings.weekStart} />
+        <p className="tiny faint" style={{ margin: '8px 4px 0' }}>
+          Your day view, check-ins and mindful pauses follow each day’s times.
+        </p>
+      </section>
 
       <NotificationsGroup />
 
       <Group title="Check-ins">
         <Row icon={Sunrise} title="Morning check-in" sub="Your plan for the day, and a moment to set an intention">
-          {n.morningOn && <input type="time" className="input" value={n.morning} onChange={(e) => e.target.value && updateSettings({ notify: { morning: e.target.value } })} aria-label="Morning check-in time" />}
+          {n.morningOn && (
+            <select className="select" value={n.morningAuto ? 'auto' : 'fixed'} onChange={(e) => updateSettings({ notify: { morningAuto: e.target.value === 'auto' } })} aria-label="Morning check-in timing">
+              <option value="auto">After I wake</option>
+              <option value="fixed">At a set time</option>
+            </select>
+          )}
+          {n.morningOn && !n.morningAuto && <input type="time" className="input" value={n.morning} onChange={(e) => e.target.value && updateSettings({ notify: { morning: e.target.value } })} aria-label="Morning check-in time" />}
           <Switch checked={n.morningOn} onChange={(v) => updateSettings({ notify: { morningOn: v } })} label="Morning check-in" />
         </Row>
         <Row icon={Moon} title="Evening reflection" sub="A quiet prompt to close the day">
-          {n.eveningOn && <input type="time" className="input" value={n.evening} onChange={(e) => e.target.value && updateSettings({ notify: { evening: e.target.value } })} aria-label="Evening reflection time" />}
+          {n.eveningOn && (
+            <select className="select" value={n.eveningAuto ? 'auto' : 'fixed'} onChange={(e) => updateSettings({ notify: { eveningAuto: e.target.value === 'auto' } })} aria-label="Evening reflection timing">
+              <option value="auto">An hour before bed</option>
+              <option value="fixed">At a set time</option>
+            </select>
+          )}
+          {n.eveningOn && !n.eveningAuto && <input type="time" className="input" value={n.evening} onChange={(e) => e.target.value && updateSettings({ notify: { evening: e.target.value } })} aria-label="Evening reflection time" />}
           <Switch checked={n.eveningOn} onChange={(v) => updateSettings({ notify: { eveningOn: v } })} label="Evening reflection" />
         </Row>
         <Row icon={CalendarClock} title="Weekly review" sub="On the last evening of each week">

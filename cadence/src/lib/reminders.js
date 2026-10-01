@@ -1,6 +1,7 @@
 import { addDays, atTime, fmtRange, fmtTime, startOfWeek, toKey } from './dates.js'
 import { itemsOn } from './recurrence.js'
 import { hash } from './ids.js'
+import { checkinTimes, dayRhythm } from './rhythm.js'
 
 // Every notification Cadence will send in the coming hours, computed from
 // state alone. The phone's service worker (local) and the push server both
@@ -63,33 +64,37 @@ export function upcomingReminders(state, { now = new Date(), hours = 48 } = {}) 
       })
     }
 
-    if (notify.morningOn && notify.morning) {
+    const times = checkinTimes(state, key)
+
+    if (notify.morningOn && times.morning) {
       const timed = dayItems.filter((i) => i.start)
       const count = dayItems.length
-      const first = timed.find((i) => i.start >= notify.morning) ?? timed[0]
+      const first = timed.find((i) => i.start >= times.morning) ?? timed[0]
       let body = 'Set an intention for today.'
       if (count) {
         body = `${count} ${count === 1 ? 'thing' : 'things'} on your day.`
         if (first) body += ` First up: ${first.title} at ${fmtTime(first.start)}.`
         body += ' Set your intention.'
       }
-      push({ id: `morning:${key}`, tag: `morning:${key}`, kind: 'morning', at: atTime(key, notify.morning), title: 'Good morning', body, url: '/?checkin=morning' })
+      push({ id: `morning:${key}`, tag: `morning:${key}`, kind: 'morning', at: atTime(key, times.morning), title: 'Good morning', body, url: '/?checkin=morning' })
     }
 
     if (notify.pauses) {
+      const { wake, sleep } = dayRhythm(state.profile, key)
       for (const [i, time] of (notify.pauseTimes ?? []).entries()) {
+        if (time < wake || time > sleep) continue // never nudge while you sleep
         push({ id: `pause:${key}:${time}`, tag: `pause:${key}:${i}`, kind: 'pause', at: atTime(key, time), title: 'A mindful moment', body: PAUSES[hash(key + time) % PAUSES.length], url: '/?breathe=1' })
       }
     }
 
-    if (notify.eveningOn && notify.evening) {
+    if (notify.eveningOn && times.evening) {
       const endOfWeek = addDays(startOfWeek(key, weekStart), 6) === key
       const weekly = endOfWeek && notify.weeklyReview
       push({
         id: `evening:${key}`,
         tag: `evening:${key}`,
         kind: 'evening',
-        at: atTime(key, notify.evening),
+        at: atTime(key, times.evening),
         title: weekly ? 'Your weekly review' : 'How was today?',
         body: weekly ? 'Look back on your week, and choose what matters next.' : 'Take a quiet minute to reflect, and let the day go.',
         url: weekly ? '/reflect?period=week' : '/reflect',

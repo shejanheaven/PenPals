@@ -1,18 +1,3 @@
-import { fmtTime, fromMinutes, toMinutes } from '../lib/dates.js'
-
-// Gentle starting routines offered during onboarding.
-export function routineTemplates({ wake = '07:00', sleep = '22:30' } = {}) {
-  const at = (base, delta) => fromMinutes(toMinutes(base) + delta)
-  return [
-    { key: 'intention', title: 'Morning intention', hint: `Daily · ${fmtTime(at(wake, 20))}`, area: 'mind', start: at(wake, 20), end: at(wake, 30), repeat: { freq: 'daily' }, reminder: 0 },
-    { key: 'deep', title: 'Deep work', hint: `Weekdays · ${fmtTime('09:00')} – ${fmtTime('11:00')}`, area: 'work', start: '09:00', end: '11:00', repeat: { freq: 'weekly', days: [1, 2, 3, 4, 5] }, reminder: 5 },
-    { key: 'move', title: 'Move your body', hint: 'Daily · anytime', area: 'health', start: null, end: null, repeat: { freq: 'daily' }, reminder: null },
-    { key: 'read', title: 'Read for 20 minutes', hint: 'Daily · anytime', area: 'growth', start: null, end: null, repeat: { freq: 'daily' }, reminder: null },
-    { key: 'connect', title: 'Reach out to someone you love', hint: 'Every Sunday', area: 'people', start: null, end: null, repeat: { freq: 'weekly', days: [0] }, reminder: null },
-    { key: 'winddown', title: 'Wind down — screens away', hint: `Daily · ${fmtTime(at(sleep, -60))}`, area: 'mind', start: at(sleep, -60), end: at(sleep, -30), repeat: { freq: 'daily' }, reminder: 0 },
-  ]
-}
-
 // Short public-domain lines for a quiet moment on the Today screen.
 export const QUOTES = [
   ['Begin at once to live, and count each separate day as a separate life.', 'Seneca'],

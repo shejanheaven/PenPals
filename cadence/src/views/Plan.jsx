@@ -9,6 +9,7 @@ import {
   startOfWeek, toKey, toMinutes, weekDays, weekdayLabels, yearOf, yearProgress,
 } from '../lib/dates.js'
 import { itemsOn } from '../lib/recurrence.js'
+import { dayRhythm } from '../lib/rhythm.js'
 import { areaColor } from '../lib/areas.js'
 import { currentPeriod, dayStats, goalProgress, goalsFor, statusOf } from '../lib/stats.js'
 
@@ -134,8 +135,9 @@ function DayView({ state, date, now }) {
   const today = toKey(now)
   const mins = nowMinutes(now)
   const wrap = useRef(null)
-  const wake = toMinutes(state.profile.wake ?? '07:00')
-  const sleep = toMinutes(state.profile.sleep ?? '22:30')
+  const rhythm = dayRhythm(state.profile, date)
+  const wake = toMinutes(rhythm.wake)
+  const sleep = toMinutes(rhythm.sleep)
   const dayGoals = goalsFor(state, 'week', currentPeriod('week', date, state.settings.weekStart), state.settings.weekStart).filter((g) => g.status === 'active')
 
   useLayoutEffect(() => {

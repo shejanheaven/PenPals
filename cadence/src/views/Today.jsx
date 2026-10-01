@@ -8,6 +8,7 @@ import { Bar, Check, Empty, Ring, toast, useMediaQuery, useNow } from '../compon
 import { ItemRow } from '../components/items.jsx'
 import { addDays, fmtDate, fmtDuration, fmtRange, fmtRelative, fmtTime, greeting, nowMinutes, toKey, toMinutes } from '../lib/dates.js'
 import { itemsOn } from '../lib/recurrence.js'
+import { checkinTimes } from '../lib/rhythm.js'
 import { areaColor } from '../lib/areas.js'
 import { currentPeriod, dayStats, goalProgress, goalsFor, statusOf } from '../lib/stats.js'
 import { hash } from '../lib/ids.js'
@@ -41,7 +42,7 @@ export default function Today() {
     (g) => g.status !== 'released',
   )
   const name = state.profile.name?.trim()
-  const evening = mins >= Math.min(toMinutes(state.settings.notify.evening ?? '21:00') - 120, 18 * 60)
+  const evening = mins >= Math.min(toMinutes(checkinTimes(state, today).evening ?? '21:00') - 120, 18 * 60)
   const [quote, author] = QUOTES[hash(today) % QUOTES.length]
   const wide = useMediaQuery('(min-width: 1200px)')
 

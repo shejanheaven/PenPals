@@ -126,3 +126,29 @@ describe('merge', () => {
     expect(pruneTombstones(m, 6 + 61 * 86400e3).items).toEqual({})
   })
 })
+
+import { checkinTimes, dayRhythm, workBlocks } from '../src/lib/rhythm.js'
+
+describe('rhythm', () => {
+  const week = {
+    0: { wake: '09:30', sleep: '23:30', work: false },
+    3: { wake: '06:00', sleep: '22:00', work: true, workStart: '07:00', workEnd: '15:00' },
+    4: { wake: '06:00', sleep: '22:00', work: true, workStart: '07:00', workEnd: '15:00' },
+    5: { wake: '08:00', sleep: '23:00', work: true, workStart: '10:00', workEnd: '18:00' },
+    6: { wake: '06:00', sleep: '22:00', work: true, workStart: '07:00', workEnd: '15:00' },
+  }
+
+  it('groups work days with the same hours into one block', () => {
+    expect(workBlocks(week)).toEqual([
+      { title: 'Work', start: '07:00', end: '15:00', area: 'work', repeat: { freq: 'weekly', days: [3, 4, 6] } },
+      { title: 'Work', start: '10:00', end: '18:00', area: 'work', repeat: { freq: 'weekly', days: [5] } },
+    ])
+  })
+
+  it('times check-ins from each day’s own wake and bed time', () => {
+    const state = { profile: { week }, settings: { notify: { morningAuto: true, eveningAuto: true, morning: '08:00', evening: '21:00' } } }
+    expect(checkinTimes(state, '2026-09-30')).toEqual({ morning: '06:15', evening: '21:00' }) // Wednesday
+    expect(checkinTimes(state, '2026-10-04')).toEqual({ morning: '09:45', evening: '22:30' }) // Sunday
+    expect(dayRhythm({ week }, '2026-10-05').wake).toBe('07:00') // Monday not set → default
+  })
+})

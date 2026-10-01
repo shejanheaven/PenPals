@@ -511,7 +511,8 @@ const EXAMPLES = ['Morning run tomorrow 7am #health', 'Team sync every Mon 10-11
 
 export function parsedChips(parsed) {
   const chips = []
-  chips.push({ icon: CalendarDays, text: fmtRelative(parsed.date) })
+  if (!parsed.repeat) chips.push({ icon: CalendarDays, text: fmtRelative(parsed.date) })
+  else if (parsed.date > todayKey()) chips.push({ icon: CalendarDays, text: `Starts ${fmtRelative(parsed.date).toLowerCase()}` })
   if (parsed.start) chips.push({ icon: Clock, text: fmtRange(parsed.start, parsed.end) })
   if (parsed.repeat) chips.push({ icon: Repeat, text: describeRepeat(parsed.repeat, parsed.date) })
   if (parsed.area) chips.push({ icon: Tag, text: AREA_BY_ID[parsed.area].label, color: areaColor(parsed.area) })
@@ -543,13 +544,13 @@ export function parsedToFields(parsed, settings) {
   }
 }
 
-export function useParser(text, { date } = {}) {
+export function useParser(text, { date, recurring = false } = {}) {
   const { settings } = useStore()
   return useMemo(() => {
-    const parsed = parseQuick(text, { areas: AREAS, dayFirst: localeDayFirst(), defaultDuration: settings.defaultDuration })
+    const parsed = parseQuick(text, { areas: AREAS, dayFirst: localeDayFirst(), defaultDuration: settings.defaultDuration, recurring })
     if (date && !parsed.hasDate) parsed.date = date
     return parsed
-  }, [text, date, settings.defaultDuration])
+  }, [text, date, recurring, settings.defaultDuration])
 }
 
 export function QuickAdd({ open, onClose, date, text: initialText = '' }) {

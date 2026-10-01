@@ -113,6 +113,13 @@ export function parseQuick(input, opts = {}) {
     setRepeat({ freq: 'weekly', days: [...new Set(days)].sort() })
     if (m[m.length - 1]) impliedTime = PART_OF_DAY[m[m.length - 1].toLowerCase()]
   })
+  // A run of two or more days, "Mon Wed Fri" or "tue & thu", means every week on those days.
+  const SEP = '(?:\\s*(?:,|&|/)\\s*(?:and\\s+)?|\\s+and\\s+|\\s+)'
+  take(`\\b(?:on\\s+)?(${WD}(?:${SEP}${WD})+)\\b`, (m) => {
+    const days = [...m[1].toLowerCase().matchAll(new RegExp(`\\b${WD}\\b`, 'g'))].map((d) => WEEKDAYS[d[1]])
+    if (days.length < 2) return false
+    setRepeat({ freq: 'weekly', days: [...new Set(days)].sort() })
+  })
   take('\\b(?:on\\s+)?(sundays|mondays|tuesdays|wednesdays|thursdays|fridays|saturdays)\\b', (m) => {
     setRepeat({ freq: 'weekly', days: [WEEKDAYS[m[1].toLowerCase().slice(0, -1)]] })
   })
@@ -185,6 +192,7 @@ export function parseQuick(input, opts = {}) {
       const atEnd = s.slice(m.index + m[0].length).trim() === ''
       if (!WD_FULL.has(word) && !prefix && !atEnd) return false
       const wd = WEEKDAYS[word]
+      if (opts.recurring && !out.repeat && prefix !== 'next') out.repeat = { freq: 'weekly', days: [wd] }
       if (prefix === 'next') setDate(addDays(startOfWeek(today, 1), 7 + ((wd + 6) % 7)))
       else setDate(nextWeekday(today, wd))
       if (m[3]) impliedTime = PART_OF_DAY[m[3].toLowerCase()]
