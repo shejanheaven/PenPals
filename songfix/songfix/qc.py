@@ -32,6 +32,8 @@ def _retune_check(folder, report):
     # Measure before and after the same way, from the two vocal files the page plays.
     tb, mb, vb = tune.track_pitch(audio_io.load(folder / "vocal_before.mp3").mean(axis=1), SR)
     ta, ma, va = tune.track_pitch(audio_io.load(folder / "vocal_after.mp3").mean(axis=1), SR)
+    ref = report.get("tuning_cents", 0.0) / 100  # note targets are relative to the song's own tuning
+    mb, ma = mb - ref, ma - ref
     worse, off = [], []
     for n in fixed:
         before, after = tune.note_error(tb, mb, n, vb), tune.note_error(ta, ma, n, va)

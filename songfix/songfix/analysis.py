@@ -40,10 +40,19 @@ def _bandwidth(x, sr):
     return f[above[-1]] if len(above) else sr / 2
 
 
-def detect_key(instrumental, sr, vocal_midi=None):
-    """Return (best_key, ranked list of (key, score))."""
+def estimate_tuning(x, sr):
+    """How far the song's reference pitch sits from A=440, in cents (-50..+50).
+
+    Producers often pitch a beat up or down; the vocal is sung to the beat, so
+    notes must be judged against the beat's tuning, not against A=440."""
+    y = librosa.resample(librosa.to_mono(x.T), orig_sr=sr, target_sr=22050)
+    return float(librosa.estimate_tuning(y=y, sr=22050) * 100)
+
+
+def detect_key(instrumental, sr, vocal_midi=None, tuning_cents=0.0):
+    """Return (best_key, ranked list of (key, score)). vocal_midi must already be relative to the tuning."""
     y = librosa.resample(librosa.to_mono(instrumental.T), orig_sr=sr, target_sr=22050)
-    chroma = librosa.feature.chroma_cqt(y=y, sr=22050).mean(axis=1)
+    chroma = librosa.feature.chroma_cqt(y=y, sr=22050, tuning=tuning_cents / 100).mean(axis=1)
     profile = chroma / chroma.sum()
     if vocal_midi is not None:
         m = vocal_midi[np.isfinite(vocal_midi)]

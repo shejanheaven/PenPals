@@ -174,3 +174,16 @@ def test_reference_picker_prefers_the_closest_sound(tmp_path):
     assert len(lib) == 2 and (tmp_path / references.CACHE_NAME).exists()
     assert references.pick(dark * 0.5, SR, lib, n=1)["names"] == ["dark.wav"]
     assert references.pick(bright * 0.5, SR, lib, n=1)["names"] == ["bright.wav"]
+
+
+def test_tuner_follows_a_beat_that_is_not_at_a440():
+    from songfix import tune
+    gap = (0.15, None, None)
+    # Beat tuned 40 cents sharp: the singer is in tune with it on the first note, 25 cents sharp of it on the second.
+    x = sung_line([gap, (0.6, 60, lambda u, t: 40 + 0 * u), gap, (0.6, 64, lambda u, t: 65 + 0 * u), gap])
+    tuned, plan, _ = tune.correct_vocals(x, SR, "C major", tuning_cents=40, log=lambda *a: None)
+    assert [p["status"] for p in plan] == ["in tune", "corrected"]
+    times, midi, voiced = tune.track_pitch(tuned.mean(axis=1), SR)
+    assert tune.note_error(times, midi - 0.4, plan[1], voiced) < 6
+    a, b = int(0.15 * SR), int(0.7 * SR)
+    assert np.array_equal(tuned[a:b], x[a:b])  # the note in tune with the beat is untouched

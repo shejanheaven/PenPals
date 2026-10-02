@@ -30,6 +30,8 @@ def build_parser():
                    help="only fix notes at least this many cents off (default 10; 100 cents = 1 semitone)")
     t.add_argument("--strength", type=float, default=1.0,
                    help="how far to pull off notes toward the right pitch, 0-1 (default 1.0)")
+    t.add_argument("--tuning", type=float, default=None,
+                   help="the song's reference pitch in cents from A=440 (default: measured from the beat)")
     t.add_argument("--vocals", help="use your own vocal stem instead of auto-separating")
     t.add_argument("--beat", help="use your own instrumental stem (needed with --vocals)")
     t.add_argument("--best-separation", action="store_true",
@@ -90,9 +92,13 @@ def main(argv=None):
             from . import tune
             log("  tracking vocal pitch...")
             times, midi, voiced = tune.track_pitch(vocals.mean(axis=1), SR)
+            tuning = args.tuning if args.tuning is not None else analysis.estimate_tuning(beat, SR)
+            report["tuning_cents"] = round(tuning, 1)
+            if abs(tuning) >= 5:
+                log(f"  the beat is tuned {tuning:+.0f} cents from A=440 - the vocal is tuned to the beat")
             key = args.key
             if key == "auto":
-                key, ranked = analysis.detect_key(beat, SR, vocal_midi=midi)
+                key, ranked = analysis.detect_key(beat, SR, vocal_midi=midi - tuning / 100, tuning_cents=tuning)
                 report["key_candidates"] = ranked
                 log(f"  detected key: {key} (same notes as {analysis.relative_key(key)})")
                 if ranked[0][1] - ranked[1][1] < 0.03 and ranked[1][0] != analysis.relative_key(key):
@@ -101,7 +107,7 @@ def main(argv=None):
             report["key"] = key
             tuned, plan, track = tune.correct_vocals(
                 vocals, SR, key, min_cents=args.min_cents, strength=args.strength,
-                track={"times": times, "midi": midi, "voiced": voiced}, log=log)
+                track={"times": times, "midi": midi, "voiced": voiced}, tuning_cents=tuning, log=log)
         tuned = tuned * 10 ** (args.vocal_level / 20)
         tuned_mix = beat + tuned
         if not args.no_stems:
