@@ -52,6 +52,8 @@ def build_parser():
     m.add_argument("--eq-amount", type=float, default=0.5,
                    help="how strongly to apply the automatic EQ, 0-1 (default 0.5)")
     m.add_argument("--no-glue", action="store_true", help="skip the gentle bus compressor")
+    m.add_argument("--no-polish", action="store_true",
+                   help="don't de-ess or soften harshness on the vocal")
     m.add_argument("--no-stems", action="store_true", help="don't save the separated vocal/instrumental files")
     p.add_argument("--no-page", action="store_true", help="don't write the before/after listening page")
     p.add_argument("--no-open", action="store_true", help="write the page but don't open it in the browser")
@@ -74,7 +76,7 @@ def main(argv=None):
     plan, track = [], None
     vocals = tuned = None
     tuned_mix = mix
-    if not args.no_tune or args.vocal_level:
+    if not args.no_tune or args.vocal_level or not args.no_polish:
         if args.vocals:
             if not args.beat:
                 sys.exit("--vocals needs --beat too")
@@ -96,18 +98,31 @@ def main(argv=None):
             report["tuning_cents"] = round(tuning, 1)
             if abs(tuning) >= 5:
                 log(f"  the beat is tuned {tuning:+.0f} cents from A=440 - the vocal is tuned to the beat")
-            key = args.key
+            key, allowed_at = args.key, None
             if key == "auto":
-                key, ranked = analysis.detect_key(beat, SR, vocal_midi=midi - tuning / 100, tuning_cents=tuning)
-                report["key_candidates"] = ranked
-                log(f"  detected key: {key} (same notes as {analysis.relative_key(key)})")
-                if ranked[0][1] - ranked[1][1] < 0.03 and ranked[1][0] != analysis.relative_key(key):
+                rel = midi - tuning / 100
+                chroma = analysis.beat_chroma(beat, SR, tuning)
+                key, ranked, cover = analysis.detect_scale(beat, SR, rel, tuning, chroma=chroma[1])
+                allowed_at, sections = analysis.scale_map(times, rel, chroma)
+                report["key_candidates"], report["key_sections"] = ranked, sections
+                log(f"  detected key: {key} (same notes as {analysis.relative_key(key)}); "
+                    f"{cover:.0%} of the held notes fit it")
+                if ranked[0][1] - ranked[1][1] < 0.012:
                     report["key_close"] = ranked[1][0]
-                    log(f"  (close call with {ranked[1][0]} - if notes sound wrong, rerun with --key)")
+                    log(f"  (close call with {ranked[1][0]} - the note they disagree on is left alone)")
+                changes = {tuple(n) for _, n in sections}
+                if len(changes) > 1:
+                    log(f"  the key shifts between sections - each section is tuned to its own key")
             report["key"] = key
             tuned, plan, track = tune.correct_vocals(
                 vocals, SR, key, min_cents=args.min_cents, strength=args.strength,
-                track={"times": times, "midi": midi, "voiced": voiced}, tuning_cents=tuning, log=log)
+                track={"times": times, "midi": midi, "voiced": voiced}, tuning_cents=tuning,
+                allowed_at=allowed_at, log=log)
+        if not args.no_polish:
+            from .comfort import polish
+            log("  polishing the vocal (de-essing, softening harshness)...")
+            tuned, pinfo = polish(tuned, SR)
+            report["vocal_polish"] = pinfo
         tuned = tuned * 10 ** (args.vocal_level / 20)
         tuned_mix = beat + tuned
         if not args.no_stems:
@@ -134,6 +149,12 @@ def main(argv=None):
                               glue=not args.no_glue, log=log)
         if picked:
             minfo["references"] = picked["names"]
+        pinfo = report.get("vocal_polish")
+        if pinfo and pinfo.get("before"):
+            b, a = pinfo["before"], pinfo["after"]
+            minfo["steps"].insert(0, f"Polished the vocal so it is easy on the ears: \"s\" sounds {b['sib_vs_vowel']:+.1f} -> "
+                                     f"{a['sib_vs_vowel']:+.1f} dB vs the vowels, harshness {b['harsh_vs_body']:+.1f} -> "
+                                     f"{a['harsh_vs_body']:+.1f} dB vs the body of the voice")
         report["mastering"] = minfo
     report["after"] = analysis.measure(final, SR)
 

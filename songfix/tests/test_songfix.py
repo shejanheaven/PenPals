@@ -187,3 +187,43 @@ def test_tuner_follows_a_beat_that_is_not_at_a440():
     assert tune.note_error(times, midi - 0.4, plan[1], voiced) < 6
     a, b = int(0.15 * SR), int(0.7 * SR)
     assert np.array_equal(tuned[a:b], x[a:b])  # the note in tune with the beat is untouched
+
+
+def test_polish_tames_harsh_esses_and_leaves_a_smooth_vocal_alone():
+    from scipy import signal
+    from songfix.comfort import measure, polish
+    gap = (0.1, None, None)
+    smooth = sung_line([gap] + [(0.5, 60 + k, lambda u, t: 0 * u) for k in (0, 2, 4, 5, 7, 9)] + [gap])
+    y, info = polish(smooth, SR)
+    assert np.sqrt(np.mean((y - smooth) ** 2)) < 0.05 * np.sqrt(np.mean(smooth ** 2))
+    # Add loud "s" bursts (6-9 kHz noise) between the notes: they must come down below the vowels.
+    rng = np.random.default_rng(1)
+    hiss = signal.sosfiltfilt(signal.butter(4, [6000, 9000], "bp", fs=SR, output="sos"), rng.standard_normal(len(smooth)))
+    t = np.arange(len(smooth)) / SR
+    hiss *= ((t % 0.6) < 0.08) * 0.5
+    harsh = smooth + hiss[:, None]
+    before = measure(harsh, SR)["sib_vs_vowel"]
+    after = measure(polish(harsh, SR)[0], SR)["sib_vs_vowel"]
+    assert before > -4 and after < before - 3
+
+
+def test_notes_under_a_harmony_are_left_alone():
+    from songfix import tune
+    gap = (0.15, None, None)
+    lead = sung_line([gap, (0.8, 60, lambda u, t: 25 + 0 * u), gap])
+    harmony = sung_line([gap, (0.8, 64, lambda u, t: 0 * u), gap])
+    _, solo, _ = tune.correct_vocals(lead, SR, "C major", log=lambda *a: None)
+    assert solo[0]["status"] == "corrected"
+    tuned, plan, _ = tune.correct_vocals(lead + 0.9 * harmony, SR, "C major", log=lambda *a: None)
+    assert plan[0]["status"].startswith("harmony")
+    assert np.array_equal(tuned, lead + 0.9 * harmony)
+
+
+def test_disputed_note_between_two_close_keys_is_left_alone():
+    from songfix import tune
+    from songfix.analysis import _allowed
+    scores = np.zeros(12)
+    scores[11], scores[6] = 0.853, 0.849  # B major vs F# major: they differ only on E vs E#
+    allowed = _allowed(scores, 0.012)
+    assert allowed[4] and allowed[5]  # both E and F are allowed, so neither gets pulled to the other
+    assert tune.nearest_allowed(64.3, allowed) == 64 and tune.nearest_allowed(64.7, allowed) == 65

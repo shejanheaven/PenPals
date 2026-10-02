@@ -121,6 +121,15 @@ def check(folder, original):
             problems.append(f"{fixed} of {len(notes)} notes corrected - unusually many, check the key ({report.get('key')})")
         if report.get("key_close"):
             checks["key_close"] = report["key_close"]
+        if (folder / "vocal_after.mp3").exists():
+            from .comfort import measure
+            c = measure(audio_io.load(folder / "vocal_after.mp3"), SR)
+            if c:
+                checks["ear_comfort"] = c
+                if c["sib_vs_vowel"] > -4.0:
+                    problems.append(f"\"s\" sounds still sharp ({c['sib_vs_vowel']:+.1f} dB vs the vowels)")
+                if c["harsh_vs_body"] > -3.5:
+                    problems.append(f"vocal still harsh ({c['harsh_vs_body']:+.1f} dB of 2.5-5 kHz vs the body)")
         p, info = _retune_check(folder, report)
         problems += p
         checks.update(info)

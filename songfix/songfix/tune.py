@@ -96,6 +96,13 @@ def find_notes(times, midi, voiced, min_dur=0.08, split_jump=0.6):
     return notes
 
 
+def nearest_allowed(m, allowed):
+    """Nearest MIDI note whose pitch class is allowed (bool[12])."""
+    base = int(np.floor(m)) - 13
+    cands = [p for p in range(base, base + 27) if allowed[p % 12]]
+    return min(cands, key=lambda p: abs(p - m))
+
+
 def nearest_scale_note(m, tonic, scale):
     allowed = [(tonic + s) % 12 for s in SCALES[scale]]
     base = int(np.floor(m)) - 13
@@ -130,7 +137,8 @@ def _ramp(n, hop_t, attack=0.12, release=0.04):
 
 
 def plan_corrections(notes, tonic, scale, min_cents=10, strength=1.0, midi=None, hop_t=HOP / ANALYSIS_SR,
-                     min_dur=0.15, short_max_cents=35, max_cents=45, max_wobble=0.45, max_trend=0.6):
+                     min_dur=0.15, short_max_cents=35, max_cents=45, max_wobble=0.45, max_trend=0.6,
+                     allowed_at=None):
     """Decide a per-frame shift (in semitones) for each note.
 
     A held note gets two corrections: its overall offset (the whole note is
@@ -141,7 +149,10 @@ def plan_corrections(notes, tonic, scale, min_cents=10, strength=1.0, midi=None,
     """
     plan = []
     for nt in notes:
-        target = nearest_scale_note(nt["center"], tonic, scale)
+        if allowed_at is not None:
+            target = nearest_allowed(nt["center"], allowed_at((nt["t0"] + nt["t1"]) / 2))
+        else:
+            target = nearest_scale_note(nt["center"], tonic, scale)
         off_cents = 100 * (nt["center"] - target)
         dur = nt["t1"] - nt["t0"]
         n = nt["end"] - nt["start"]
@@ -227,12 +238,14 @@ def shift_curve(plan, n_frames, hop_t, glide=0.03, bridge=0.15):
     return curve
 
 
-def correct_vocals(vocals, sr, key, min_cents=10, strength=1.0, track=None, tuning_cents=0.0, log=print):
+def correct_vocals(vocals, sr, key, min_cents=10, strength=1.0, track=None, tuning_cents=0.0, allowed_at=None,
+                   log=print):
     """Pitch-correct a stereo vocal stem (n, 2). Returns (tuned, plan, track).
 
     tuning_cents: the song's reference pitch relative to A=440 (see analysis.estimate_tuning).
     Notes are judged against it, so a beat pitched 40 cents flat keeps its vocal 40 cents flat.
-    Plan targets and the returned track["midi"] are relative to that reference."""
+    Plan targets and the returned track["midi"] are relative to that reference.
+    allowed_at: optional t -> bool[12] of in-key notes at that moment (analysis.scale_map); overrides `key`."""
     mono = vocals.mean(axis=1)
     if track is None:
         times, midi, voiced = track_pitch(mono, sr)
@@ -242,7 +255,9 @@ def correct_vocals(vocals, sr, key, min_cents=10, strength=1.0, track=None, tuni
     ref = tuning_cents / 100
     rel = midi - ref  # pitch relative to the song's own tuning
     notes = find_notes(times, rel, voiced)
-    plan = plan_corrections(notes, tonic, scale, min_cents=min_cents, strength=strength, midi=rel)
+    plan = plan_corrections(notes, tonic, scale, min_cents=min_cents, strength=strength, midi=rel,
+                            allowed_at=allowed_at)
+    _skip_harmonies(plan, mono, sr, tuning_cents)
     hop_t = HOP / ANALYSIS_SR
     curve = shift_curve(plan, len(times), hop_t)
     track = {"times": times, "midi": rel, "voiced": voiced, "curve": curve}
@@ -256,7 +271,7 @@ def correct_vocals(vocals, sr, key, min_cents=10, strength=1.0, track=None, tuni
     # a note that can't be fixed cleanly is left exactly as sung.
     for _ in range(3):
         tuned, track["curve"], n_touch = _two_pass(vocals, plan, times, midi, voiced, curve, tonic, scale,
-                                                   min_cents, strength, sr, ref)
+                                                   min_cents, strength, sr, ref, allowed_at)
         failed = _verify(tuned, plan, times, rel, sr, ref)
         if not failed:
             break
@@ -281,7 +296,33 @@ def correct_vocals(vocals, sr, key, min_cents=10, strength=1.0, track=None, tuni
     return tuned, plan, track
 
 
-def _two_pass(vocals, plan, times, midi, voiced, curve, tonic, scale, min_cents, strength, sr, ref=0.0):
+def _skip_harmonies(plan, mono, sr, tuning_cents, ratio=0.6):
+    """Leave notes alone where a second voice (a harmony or stacked double) is singing a different note.
+
+    Shifting the stem would move the harmony with the lead and make the two clash. A second pitch
+    class carrying more than `ratio` of the lead's chroma energy, other than the lead's own fifth
+    (its strongest overtone), counts as another voice."""
+    todo = [p for p in plan if p["status"] == "corrected"]
+    if not todo:
+        return
+    y = librosa.resample(mono, orig_sr=sr, target_sr=ANALYSIS_SR)
+    c = librosa.feature.chroma_cqt(y=y, sr=ANALYSIS_SR, hop_length=HOP, tuning=tuning_cents / 100)
+    ct = librosa.frames_to_time(np.arange(c.shape[1]), sr=ANALYSIS_SR, hop_length=HOP)
+    for p in todo:
+        sel = (ct >= p["t0"]) & (ct <= p["t1"])
+        if not sel.any():
+            continue
+        e = c[:, sel].mean(axis=1)
+        lead = p["target"] % 12
+        # An out-of-tune note also spills into the neighbouring half-steps; harmonies never sit there.
+        own = {lead, (lead + 1) % 12, (lead - 1) % 12, (lead + 7) % 12}
+        others = [e[k] for k in range(12) if k not in own]
+        if max(others) > ratio * e[lead]:
+            p["frames"], p["shift"], p["status"] = None, 0.0, "harmony / stacked voices (left natural)"
+
+
+def _two_pass(vocals, plan, times, midi, voiced, curve, tonic, scale, min_cents, strength, sr, ref=0.0,
+              allowed_at=None):
     """First pass, then re-measure the notes just fixed and touch up any PSOLA left a few cents short.
 
     Returns (tuned, total shift curve, number of notes touched up)."""
@@ -290,7 +331,7 @@ def _two_pass(vocals, plan, times, midi, voiced, curve, tonic, scale, min_cents,
     t2, m2, v2 = track_pitch(tuned.mean(axis=1), sr)
     first = [(p["t0"], p["t1"]) for p in plan if p["status"] == "corrected"]
     full2 = plan_corrections(find_notes(t2, m2 - ref, v2), tonic, scale, min_cents=min(min_cents, 8),
-                             strength=strength, midi=m2 - ref)
+                             strength=strength, midi=m2 - ref, allowed_at=allowed_at)
     for p in full2:
         if p["status"] == "corrected" and not any(p["t0"] < b and p["t1"] > a for a, b in first):
             p["frames"], p["shift"], p["status"] = None, 0.0, "left for pass one"
