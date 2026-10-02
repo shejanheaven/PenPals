@@ -29,24 +29,18 @@ def _retune_check(folder, report):
     fixed = [n for n in report.get("notes", []) if n["status"] == "corrected"]
     if not fixed or not (folder / "vocal_after.mp3").exists():
         return [], {"notes_checked": 0}
-    v = audio_io.load(folder / "vocal_after.mp3").mean(axis=1)
-    times, midi, voiced = tune.track_pitch(v, SR)
+    # Measure before and after the same way, from the two vocal files the page plays.
+    tb, mb, vb = tune.track_pitch(audio_io.load(folder / "vocal_before.mp3").mean(axis=1), SR)
+    ta, ma, va = tune.track_pitch(audio_io.load(folder / "vocal_after.mp3").mean(axis=1), SR)
     worse, off = [], []
     for n in fixed:
-        span = n["t1"] - n["t0"]
-        sel = (times >= n["t0"] + 0.2 * span) & (times <= n["t0"] + 0.9 * span) & voiced
-        if sel.sum() < 3:
+        before, after = tune.note_error(tb, mb, n, vb), tune.note_error(ta, ma, n, va)
+        if after is None:
             continue
-        cents = 100 * (tune.despike(midi[sel]) - n["target"])
-        cents = cents[np.abs(cents) < 60]  # frames of the neighbouring note at the edges of very short notes
-        if len(cents) < 3:
-            continue
-        k = min(len(cents), 9)
-        err = float(np.median(np.abs(np.convolve(cents, np.ones(k) / k, mode="valid"))))
-        if err > abs(n["worst_cents"]) + 2:
-            worse.append(f"{n['t0']:.1f}s")
-        elif err > (12 if span >= 0.15 else 18):  # pitch of very short notes is both heard and measured more loosely
-            off.append(f"{n['t0']:.1f}s ({err:.0f} cents)")
+        if before is not None and after > before + 2:
+            worse.append(f"{n['t0']:.1f}s ({before:.0f} -> {after:.0f} cents)")
+        elif after > (12 if n["t1"] - n["t0"] >= 0.15 else 18):  # short notes are heard and measured more loosely
+            off.append(f"{n['t0']:.1f}s ({after:.0f} cents)")
     problems = []
     if worse:
         problems.append(f"tuning made {len(worse)} note(s) worse: {', '.join(worse[:6])}")
@@ -82,14 +76,19 @@ def check(folder, original):
     if checks["dc_offset"] > 0.002:
         problems.append("DC offset in the master")
 
-    # Clicks: anything sharper than the sharpest 0.001% of the original is suspicious.
+    # Clicks: a spike sharper than the sharpest 0.001% of the original, with nothing nearly as sharp in the
+    # original within 5 ms. A drum hit the EQ made a bit brighter is not a click.
     d2o, _ = _clicks(orig, 0)
     thr = max(float(np.percentile(d2o, 99.999)) * 1.5, 1.0)
-    _, co = _clicks(orig, thr)
-    _, cm = _clicks(out, thr)
-    checks["clicks_original"], checks["clicks_master"] = co, cm
-    if cm > 3 * co + 20:
-        problems.append(f"{cm - co} new click-like spikes (original has {co})")
+    d2m, _ = _clicks(out, thr)
+    w = int(0.005 * SR)
+    from scipy.ndimage import maximum_filter1d
+    near = maximum_filter1d(d2o, size=2 * w + 1)[:len(d2m)]
+    new = np.flatnonzero((d2m > thr) & (d2m > 2.5 * near))
+    times = sorted({round(i / SR, 1) for i in new})
+    checks["new_clicks"] = len(times)
+    if times:
+        problems.append(f"{len(times)} click(s) not in the original: {', '.join(f'{t}s' for t in times[:6])}")
 
     # Tone: mastering EQ is capped at 2.5 dB; more than 4.5 dB of change anywhere means something went wrong.
     c, lo = band_spectrum(orig, SR)

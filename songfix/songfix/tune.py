@@ -245,10 +245,42 @@ def correct_vocals(vocals, sr, key, min_cents=10, strength=1.0, track=None, log=
         log("  every sung note is already in tune - vocal left untouched")
         return vocals.copy(), plan, track
 
-    tuned = _render(vocals, plan, times, midi, voiced, curve, sr)
+    # Render, re-measure, and put back any note that did not clearly improve.
+    # Pitch-shifting a layered or heavily processed vocal can land off target;
+    # a note that can't be fixed cleanly is left exactly as sung.
+    for _ in range(3):
+        tuned, track["curve"], n_touch = _two_pass(vocals, plan, times, midi, voiced, curve, tonic, scale,
+                                                   min_cents, strength, sr)
+        failed = _verify(tuned, plan, times, midi, sr)
+        if not failed:
+            break
+        for p in failed:
+            p["frames"], p["shift"], p["status"] = None, 0.0, "unclear pitch (left natural)"
+        curve = shift_curve(plan, len(times), hop_t)
+        if not any(p["status"] == "corrected" for p in plan):
+            tuned, track["curve"], n_touch = vocals.copy(), curve, 0
+            break
+    else:
+        # Still failing after three rounds: keep only what verified, render once more without them.
+        for p in _verify(tuned, plan, times, midi, sr):
+            p["frames"], p["shift"], p["status"] = None, 0.0, "unclear pitch (left natural)"
+        curve = shift_curve(plan, len(times), hop_t)
+        tuned, track["curve"] = _render(vocals, plan, times, midi, voiced, curve, sr), curve
+        n_touch = 0
+    n_fixed = sum(1 for p in plan if p["status"] == "corrected")
+    n_back = sum(1 for p in plan if p["status"] == "unclear pitch (left natural)")
+    log(f"  corrected {n_fixed} of {len(plan)} sung notes"
+        + (f" ({n_touch} touched up in a second pass)" if n_touch else "")
+        + (f"; {n_back} put back as sung because they could not be fixed cleanly" if n_back else ""))
+    return tuned, plan, track
 
-    # Second pass: re-measure the notes just fixed and touch up any that PSOLA
-    # left a few cents short. Only notes the first pass corrected are eligible.
+
+def _two_pass(vocals, plan, times, midi, voiced, curve, tonic, scale, min_cents, strength, sr):
+    """First pass, then re-measure the notes just fixed and touch up any PSOLA left a few cents short.
+
+    Returns (tuned, total shift curve, number of notes touched up)."""
+    hop_t = HOP / ANALYSIS_SR
+    tuned = _render(vocals, plan, times, midi, voiced, curve, sr)
     t2, m2, v2 = track_pitch(tuned.mean(axis=1), sr)
     first = [(p["t0"], p["t1"]) for p in plan if p["status"] == "corrected"]
     full2 = plan_corrections(find_notes(t2, m2, v2), tonic, scale, min_cents=min(min_cents, 8),
@@ -257,13 +289,43 @@ def correct_vocals(vocals, sr, key, min_cents=10, strength=1.0, track=None, log=
         if p["status"] == "corrected" and not any(p["t0"] < b and p["t1"] > a for a, b in first):
             p["frames"], p["shift"], p["status"] = None, 0.0, "left for pass one"
     plan2 = [p for p in full2 if p["status"] == "corrected"]
-    if plan2:
-        curve2 = shift_curve(full2, len(t2), hop_t)
-        tuned = _render(tuned, plan2, t2, m2, v2, curve2, sr)
-        track["curve"] = curve + curve2[:len(curve)]
-    log(f"  corrected {n_fixed} of {len(plan)} sung notes" + (f" ({len(plan2)} touched up in a second pass)"
-                                                               if plan2 else ""))
-    return tuned, plan, track
+    if not plan2:
+        return tuned, curve, 0
+    curve2 = shift_curve(full2, len(t2), hop_t)
+    return _render(tuned, plan2, t2, m2, v2, curve2, sr), curve + curve2[:len(curve)], len(plan2)
+
+
+def note_error(times, midi, p, voiced=None):
+    """Typical distance (cents) of a note from its target over its held middle, ignoring tracker spikes
+    and frames that belong to the neighbouring note. None if there is too little to measure."""
+    span = p["t1"] - p["t0"]
+    sel = (times >= p["t0"] + 0.2 * span) & (times <= p["t0"] + 0.9 * span) & np.isfinite(midi)
+    if voiced is not None:
+        sel &= voiced
+    if sel.sum() < 3:
+        return None
+    cents = 100 * (despike(midi[sel]) - p["target"])
+    cents = cents[np.abs(cents) < 60]
+    if len(cents) < 3:
+        return None
+    k = min(len(cents), 9)
+    return float(np.median(np.abs(np.convolve(cents, np.ones(k) / k, mode="valid"))))
+
+
+def _verify(tuned, plan, times, midi, sr):
+    """Corrected notes that did not end up clearly better: within 12 cents (18 for notes under
+    0.15 s) and at least 2 cents closer than before."""
+    t3, m3, v3 = track_pitch(tuned.mean(axis=1), sr)
+    failed = []
+    for p in plan:
+        if p["status"] != "corrected":
+            continue
+        before = note_error(times, midi, p)
+        after = note_error(t3, m3, p, v3)
+        limit = 12 if p["t1"] - p["t0"] >= 0.15 else 18
+        if after is None or after > limit or (before is not None and after > before - 2):
+            failed.append(p)
+    return failed
 
 
 def _render(vocals, plan, times, midi, voiced, curve, sr):
