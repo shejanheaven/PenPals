@@ -120,8 +120,18 @@ def main(argv=None):
                 allowed_at=allowed_at, log=log)
         if not args.no_polish:
             from .comfort import polish
-            log("  polishing the vocal (de-essing, softening harshness)...")
+            log("  making the vocal crisp and easy on the ears...")
             tuned, pinfo = polish(tuned, SR)
+            # Sit the vocal on top of the beat: lift a buried vocal (more than 2 dB under the beat) to ~1 dB
+            # under, by up to 3 dB; tame one piled far on top. args.vocal_level still applies on top of this.
+            import pyloudnorm as pyln
+            meter = pyln.Meter(SR)
+            rel = meter.integrated_loudness(tuned) - meter.integrated_loudness(beat)
+            lift = min(-1.0 - rel, 3.0) if rel < -2.0 else max(3.0 - rel, -2.0) if rel > 4.0 else 0.0
+            if lift:
+                tuned = tuned * 10 ** (lift / 20)
+                log(f"  vocal was {rel:+.1f} dB vs the beat - moved {lift:+.1f} dB so it sits on top")
+            pinfo["vocal_vs_beat_db"], pinfo["vocal_lift_db"] = round(rel, 1), round(lift, 1)
             report["vocal_polish"] = pinfo
         tuned = tuned * 10 ** (args.vocal_level / 20)
         tuned_mix = beat + tuned
@@ -152,9 +162,22 @@ def main(argv=None):
         pinfo = report.get("vocal_polish")
         if pinfo and pinfo.get("before"):
             b, a = pinfo["before"], pinfo["after"]
-            minfo["steps"].insert(0, f"Polished the vocal so it is easy on the ears: \"s\" sounds {b['sib_vs_vowel']:+.1f} -> "
-                                     f"{a['sib_vs_vowel']:+.1f} dB vs the vowels, harshness {b['harsh_vs_body']:+.1f} -> "
-                                     f"{a['harsh_vs_body']:+.1f} dB vs the body of the voice")
+            crisp = []
+            if pinfo.get("mud_cut_db"):
+                crisp.append(f"cleared {pinfo['mud_cut_db']:.1f} dB of boxiness around 300 Hz")
+            if pinfo.get("leveled"):
+                crisp.append(f"evened out the level (swings {b['level_spread']:.0f} -> {a['level_spread']:.0f} dB) "
+                             "so every word comes through")
+            if pinfo.get("air_db"):
+                crisp.append(f"added {pinfo['air_db']:.1f} dB of air above 10 kHz")
+            if pinfo.get("vocal_lift_db"):
+                crisp.append(f"moved the vocal {pinfo['vocal_lift_db']:+.1f} dB so it sits on top of the beat")
+            if crisp:
+                minfo["steps"].insert(0, "Made the vocal crisp: " + "; ".join(crisp))
+            minfo["steps"].insert(1 if crisp else 0,
+                                  f"Kept it easy on the ears: \"s\" sounds {b['sib_vs_vowel']:+.1f} -> "
+                                  f"{a['sib_vs_vowel']:+.1f} dB vs the vowels, harshness {b['harsh_vs_body']:+.1f} -> "
+                                  f"{a['harsh_vs_body']:+.1f} dB vs the body of the voice")
         report["mastering"] = minfo
     report["after"] = analysis.measure(final, SR)
 

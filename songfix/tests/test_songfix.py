@@ -191,10 +191,10 @@ def test_tuner_follows_a_beat_that_is_not_at_a440():
 
 def test_polish_tames_harsh_esses_and_leaves_a_smooth_vocal_alone():
     from scipy import signal
-    from songfix.comfort import measure, polish
+    from songfix.comfort import _tame, measure, polish
     gap = (0.1, None, None)
     smooth = sung_line([gap] + [(0.5, 60 + k, lambda u, t: 0 * u) for k in (0, 2, 4, 5, 7, 9)] + [gap])
-    y, info = polish(smooth, SR)
+    y, info = _tame(smooth, SR)
     assert np.sqrt(np.mean((y - smooth) ** 2)) < 0.05 * np.sqrt(np.mean(smooth ** 2))
     # Add loud "s" bursts (6-9 kHz noise) between the notes: they must come down below the vowels.
     rng = np.random.default_rng(1)
@@ -227,3 +227,27 @@ def test_disputed_note_between_two_close_keys_is_left_alone():
     allowed = _allowed(scores, 0.012)
     assert allowed[4] and allowed[5]  # both E and F are allowed, so neither gets pulled to the other
     assert tune.nearest_allowed(64.3, allowed) == 64 and tune.nearest_allowed(64.7, allowed) == 65
+
+
+def test_crisp_fixes_a_muddy_dull_uneven_vocal_and_leaves_a_crisp_one_mostly_alone():
+    from scipy import signal
+    from songfix.comfort import _biquad, crisp, measure
+    gap = (0.1, None, None)
+    rng = np.random.default_rng(2)
+    voice = sung_line([gap] + [(0.6, 57 + k, lambda u, t: 0 * u) for k in (0, 2, 4, 5, 7, 9, 11, 12) * 2] + [gap])
+    voice = _biquad(_biquad(voice, SR, "peak", 1500, 12.0, q=0.6), SR, "peak", 300, -4.0)  # vocal resonances
+    breath = signal.sosfiltfilt(signal.butter(4, 9000, "hp", fs=SR, output="sos"), rng.standard_normal(len(voice)))
+    crisp_voice = voice + 0.01 * breath[:, None] * (np.abs(voice) > 0.01)
+    good = measure(crisp_voice, SR)
+    _, info = crisp(crisp_voice, SR)
+    assert info["mud_cut_db"] < 1.5 and not info.get("leveled")
+    # Make it boxy, dull and uneven: +11 dB at 300 Hz, -8 dB above 10 kHz, every other 2.4 s phrase 10 dB down.
+    bad = _biquad(_biquad(crisp_voice, SR, "peak", 300, 11.0), SR, "shelf", 10000, -8.0)
+    t = np.arange(len(bad)) / SR
+    bad = bad * np.where(((t - 0.1) // 2.4) % 2 == 1, 10 ** (-10 / 20), 1.0)[:, None]
+    b = measure(bad, SR)
+    y, info = crisp(bad, SR)
+    a = measure(y, SR)
+    assert b["mud"] > 3.5 and a["mud"] < b["mud"] and a["mud"] <= 3.5  # trimmed to the target, no further
+    assert b["air"] < -10 and a["air"] > b["air"] + 2
+    assert b["level_spread"] > 6 and a["level_spread"] < b["level_spread"] - 3
