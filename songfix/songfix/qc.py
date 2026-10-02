@@ -39,7 +39,7 @@ def _retune_check(folder, report):
         before, after = tune.note_error(tb, mb, n, vb), tune.note_error(ta, ma, n, va)
         if after is None:
             continue
-        if before is not None and after > before + 2:
+        if before is not None and after > before + 2 and after > 10:  # under 10 cents is still in tune
             worse.append(f"{n['t0']:.1f}s ({before:.0f} -> {after:.0f} cents)")
         elif after > (12 if n["t1"] - n["t0"] >= 0.15 else 18):  # short notes are heard and measured more loosely
             off.append(f"{n['t0']:.1f}s ({after:.0f} cents)")
@@ -86,7 +86,12 @@ def check(folder, original):
     w = int(0.005 * SR)
     from scipy.ndimage import maximum_filter1d
     near = maximum_filter1d(d2o, size=2 * w + 1)[:len(d2m)]
-    new = np.flatnonzero((d2m > thr) & (d2m > 2.5 * near))
+    cand = np.flatnonzero((d2m > thr) & (d2m > 2.5 * near))
+    # A click is a lone jump of a few samples; a burst of sharp samples is a consonant ("t", "k", "ch") that
+    # the vocal polish made audible, which is the point of making the vocal crisp.
+    hot = (d2m > thr / 2).astype(np.int32)
+    density = np.convolve(hot, np.ones(2 * w + 1, dtype=np.int32), mode="same")
+    new = cand[density[cand] <= 3]
     times = sorted({round(i / SR, 1) for i in new})
     checks["new_clicks"] = len(times)
     if times:

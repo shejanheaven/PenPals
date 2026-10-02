@@ -32,6 +32,9 @@ def build_parser():
                    help="how far to pull off notes toward the right pitch, 0-1 (default 1.0)")
     t.add_argument("--tuning", type=float, default=None,
                    help="the song's reference pitch in cents from A=440 (default: measured from the beat)")
+    t.add_argument("--no-smooth", action="store_true",
+                   help="don't smooth auto-tune note flips, instant jumps and chatter")
+    t.add_argument("--no-declip", action="store_true", help="don't rebuild clipped peaks in the song")
     t.add_argument("--vocals", help="use your own vocal stem instead of auto-separating")
     t.add_argument("--beat", help="use your own instrumental stem (needed with --vocals)")
     t.add_argument("--best-separation", action="store_true",
@@ -72,9 +75,16 @@ def main(argv=None):
     report = {"song": song.name, "duration_s": round(len(mix) / SR, 2), "settings": vars(args)}
     report["before"] = analysis.measure(mix, SR)
     log(f"  before: {report['before']['lufs']} LUFS, true peak {report['before']['true_peak_dbtp']} dBTP")
+    original = mix
+    if not args.no_declip:
+        from .restore import declip
+        mix, n_clip = declip(mix)
+        if n_clip:
+            report["declipped_peaks"] = n_clip
+            log(f"  rebuilt {n_clip} clipped (flat-topped) peaks in the render")
 
     plan, track = [], None
-    vocals = tuned = None
+    vocals = tuned = raw_vocals = None
     tuned_mix = mix
     if not args.no_tune or args.vocal_level or not args.no_polish:
         if args.vocals:
@@ -89,12 +99,25 @@ def main(argv=None):
                 else ("UVR-MDX-NET-Voc_FT.onnx",)
             vocals, beat = separate_vocals(mix, SR, models=models, log=log)
 
-        tuned = vocals
+        raw_vocals = tuned = vocals
         if not args.no_tune:
             from . import tune
+            tuning = args.tuning if args.tuning is not None else analysis.estimate_tuning(beat, SR)
+            if not args.no_smooth:
+                # Smooth what a too-fast auto-tune left behind (note flips, instant jumps, chatter on rasp)
+                # before judging the notes. Two passes at most: every pass re-renders those spots.
+                from .retune import smooth_vocal
+                log("  checking the auto-tune for note flips, instant jumps and chatter...")
+                infos = []
+                for _ in range(2):
+                    vocals, sinfo = smooth_vocal(vocals, SR, tuning, log=log)
+                    infos.append(sinfo)
+                    if sinfo.get("kept_original") or "warble_after" not in sinfo:
+                        break
+                report["autotune_smoothing"] = infos
+                tuned = vocals
             log("  tracking vocal pitch...")
             times, midi, voiced = tune.track_pitch(vocals.mean(axis=1), SR)
-            tuning = args.tuning if args.tuning is not None else analysis.estimate_tuning(beat, SR)
             report["tuning_cents"] = round(tuning, 1)
             if abs(tuning) >= 5:
                 log(f"  the beat is tuned {tuning:+.0f} cents from A=440 - the vocal is tuned to the beat")
@@ -136,7 +159,7 @@ def main(argv=None):
         tuned = tuned * 10 ** (args.vocal_level / 20)
         tuned_mix = beat + tuned
         if not args.no_stems:
-            audio_io.save_wav(out_dir / "vocals_original.wav", vocals)
+            audio_io.save_wav(out_dir / "vocals_original.wav", raw_vocals)
             audio_io.save_wav(out_dir / "vocals_tuned.wav", tuned)
             audio_io.save_wav(out_dir / "instrumental.wav", beat)
 
@@ -200,8 +223,8 @@ def main(argv=None):
     if not args.no_page:
         from .viewer import write_page
         log("  writing before/after page...")
-        page = write_page(report, out_dir, mix, final, vocals=vocals,
-                          tuned=tuned if plan else None, final_mp3=out_dir / f"{name}.mp3",
+        page = write_page(report, out_dir, original, final, vocals=raw_vocals,
+                          tuned=tuned, final_mp3=out_dir / f"{name}.mp3",
                           downloads=[f"{name}.wav", f"{name}.mp3"])
     log(f"  after:  {report['after']['lufs']} LUFS, true peak {report['after']['true_peak_dbtp']} dBTP")
     log(f"done in {time.time() - t_start:.0f}s -> {out_dir}")

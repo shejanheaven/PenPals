@@ -251,3 +251,32 @@ def test_crisp_fixes_a_muddy_dull_uneven_vocal_and_leaves_a_crisp_one_mostly_alo
     assert b["mud"] > 3.5 and a["mud"] < b["mud"] and a["mud"] <= 3.5  # trimmed to the target, no further
     assert b["air"] < -10 and a["air"] > b["air"] + 2
     assert b["level_spread"] > 6 and a["level_spread"] < b["level_spread"] - 3
+
+
+def test_autotune_flip_is_held_and_instant_jump_becomes_a_glide():
+    from songfix import retune, tune
+    gap = (0.15, None, None)
+    # Held A3 with a 70 ms flip down to G#3 in the middle, then an instant jump up to C4.
+    flip = lambda u, t: np.where((t > 0.40) & (t < 0.47), -100.0, 0.0)
+    x = sung_line([gap, (0.9, 57, flip), (0.6, 60, lambda u, t: 0 * u), gap])
+    y, info = retune.smooth_vocal(x, SR, log=lambda *a: None)
+    assert info["warble_found"] >= 1 and info["snaps_found"] >= 1 and not info.get("kept_original")
+    times, midi, voiced = tune.track_pitch(y.mean(axis=1), SR)
+    held = (times > 0.25) & (times < 0.95) & voiced
+    assert np.all(np.abs(midi[held] - 57) < 0.5)  # the flip is gone
+    jump = (times > 1.0) & (times < 1.1) & voiced
+    between = np.sum((midi[jump] > 57.3) & (midi[jump] < 59.7))
+    assert between * tune.HOP / tune.ANALYSIS_SR >= 0.03  # the jump now glides for at least 30 ms
+
+
+def test_declip_rebuilds_flat_peaks():
+    from songfix.restore import declip
+    t = np.arange(SR) / SR
+    clean = np.sin(2 * np.pi * 110 * t)
+    clipped = np.clip(clean, -0.7, 0.7)
+    x = np.stack([clipped, clipped], axis=1)
+    y, runs = declip(x)
+    assert runs > 20
+    err_before = np.sqrt(np.mean((x[:, 0] - clean) ** 2))
+    err_after = np.sqrt(np.mean((y[:, 0] - clean) ** 2))
+    assert err_after < 0.3 * err_before
