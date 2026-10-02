@@ -16,7 +16,7 @@ pip install -r requirements.txt
 python -m songfix "my song.wav"
 ```
 
-On Windows you can also **drag a song file onto `fix-my-song.bat`**.
+On Windows, **drag one or more song files onto `fix-my-song.bat`**. The first time, it sets up its own Python environment in `.venv` (needs Python 3.10-3.13 and ffmpeg: `winget install Python.Python.3.13 Gyan.FFmpeg`).
 
 The first run downloads the vocal-separation model (~65 MB). A 2-3 minute song takes 2-6 minutes on a normal laptop.
 
