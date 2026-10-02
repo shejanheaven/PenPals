@@ -26,15 +26,22 @@ def write_markdown(r, path):
             lines += ["| Time | Note | Was off by | Moved |", "|---|---|---|---|"]
             for n in fixed:
                 m, s = divmod(n["t0"], 60)
+                off = n.get("worst_cents", n["off_cents"])
+                drift = " - drifted" if abs(off - n["off_cents"]) >= 8 else ""
                 lines.append(f"| {int(m)}:{s:05.2f} | {_fmt_note(n['target'])} | "
-                             f"{n['off_cents']:+.0f} cents ({'sharp' if n['off_cents'] > 0 else 'flat'}) | "
+                             f"{off:+.0f} cents ({'sharp' if off > 0 else 'flat'}{drift}) | "
                              f"{n['shift'] * 100:+.0f} cents |")
             lines.append("")
         skipped = [n for n in r["notes"] if n["status"] not in ("corrected", "in tune", "too short (left natural)")]
         if skipped:
             lines += [f"{len(skipped)} more notes were off-centre but sound like slides/runs, so they were "
                       "left natural on purpose.", ""]
-    if "mastering" in r:
+    if "mastering" in r and r["mastering"].get("steps"):
+        lines += ["## Mastering", ""] + [f"- {s}" for s in r["mastering"]["steps"]]
+        if r["mastering"].get("references"):
+            lines.append(f"- Reference songs used: {', '.join(r['mastering']['references'])}")
+        lines.append("")
+    elif "mastering" in r:
         eq = r["mastering"]["eq"]
         moves = sorted(zip(eq["freqs"], eq["gain_db"]), key=lambda fg: -abs(fg[1]))[:5]
         lines += ["## Mastering", "",

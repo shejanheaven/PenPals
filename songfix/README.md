@@ -2,9 +2,9 @@
 
 Make a finished song sound better automatically:
 
-1. **Fixes out-of-tune vocal notes.** The vocal is pulled out of the beat by an AI separator. Every sung note is checked against the song's key, and only the notes that are actually off get moved onto the right pitch. Slides, runs, vibrato and your tone are left alone, so it doesn't sound robotic. Everything that wasn't fixed stays bit-for-bit identical.
-2. **Masters the song.** It cleans up rumble, keeps the bass mono, applies gentle EQ to smooth harsh or muddy spots, adds light glue compression, and sets the loudness with a true-peak limiter. The result is loud and clean, with no clipping or crackle on phones, Spotify or SoundCloud.
-3. **Writes a report** listing which notes were fixed (with timestamps), what the mastering changed, and tips.
+1. **Fixes out-of-tune vocal notes.** The vocal is pulled out of the beat by an AI separator. Every sung note is checked against the song's key, and only the notes that are actually off get moved onto the right pitch: notes sung sharp or flat, notes that start in tune and then sag or creep off, and short notes that are clearly off. Slides, runs, vibrato and your tone are left alone, so it doesn't sound robotic. Everything that wasn't fixed stays bit-for-bit identical.
+2. **Masters the song.** It cleans up rumble, keeps the bass mono, shapes the tone (toward your reference songs if you add some), steadies the low end, tames sibilance and harsh peaks, widens a narrow top end, glues the mix, and brings it to commercial loudness with a soft clipper and a true-peak limiter. The result is loud and clean, with no clipping or crackle on phones, Spotify or SoundCloud.
+3. **Opens a before/after page** where you can A/B the original against the fix, see every corrected note, and download the finished WAV or MP3. A `report.md` lists the same in text.
 
 ## Quick start
 
@@ -30,6 +30,10 @@ You get a folder `my song_songfix/` with:
 | `report.md` | what was fixed and changed |
 | `vocals_original.wav`, `vocals_tuned.wav`, `instrumental.wav` | the separated stems, before and after tuning |
 
+## Make it sound like the records you love
+
+Put 5-15 finished, professionally mastered songs you love into the `references/` folder (WAV or 320 kbps MP3, any mix of genres). Every master is then matched to the 3 references whose sound is closest to it: their tonal balance and their loudness. A rap song gets matched to your rap references, a ballad to your ballads. Without references, songfix smooths the song's own tonal balance and masters to -9 to -8 LUFS.
+
 ## Useful options
 
 ```bash
@@ -37,12 +41,13 @@ You get a folder `my song_songfix/` with:
 python -m songfix song.wav --key "A minor"        # also: "F#m", "Bb major", "chromatic"
 
 # Fix more notes (smaller mistakes):
-python -m songfix song.wav --min-cents 10
+python -m songfix song.wav --min-cents 6
 
-# Make it sound like a song you love (EQ moves toward the reference):
+# Match one specific song instead of the references folder (or ignore the folder):
 python -m songfix song.wav --reference "favourite song.mp3"
+python -m songfix song.wav --no-references
 
-# Loudness: -9 LUFS is the default. -14 suits streaming; -7 is very loud rap/EDM:
+# Loudness: default is your references' loudness, else -9 to -8 LUFS. -14 suits streaming; -7 is very loud rap/EDM:
 python -m songfix song.wav --loudness -8
 
 # Turn the vocal up 1.5 dB before mastering:
@@ -77,9 +82,12 @@ Run `python -m songfix --help` for everything.
 |---|---|
 | Vocal separation | UVR MDX-Net (ONNX, CPU). The instrumental is computed as `mix - vocals`, so beat + vocal adds back to the exact original |
 | Pitch tracking | pYIN for voicing, refined with YIN for sub-cent accuracy |
-| Note decisions | notes are segmented and the note centre is compared with the nearest scale note. Short flicks, slides and ambiguous notes are skipped |
+| Note decisions | notes are segmented; each note's centre and its slow drift (pitch smoothed over 0.2 s, so vibrato is kept) are compared with the nearest scale note. Notes 10+ cents off are fixed; steady short notes too. Slides, runs, bends past 45 cents and notes halfway between two scale notes are left as sung |
 | Pitch shifting | TD-PSOLA: formant-preserving and sample-exact where nothing is shifted, so there are no seams |
-| EQ | linear-phase FIR that fills dips and trims bumps relative to the song's own smoothed tonal curve (or a reference track), max ±2.5 dB |
+| EQ | linear-phase FIR toward the average tonal curve of the 3 closest reference songs, or one reference track, or the song's own smoothed curve; max ±2.5 dB |
+| Multiband | complementary 3-band split (exact reconstruction): soft-knee compression on the lows (<150 Hz) to steady the low end, fast compression on the highs (>5 kHz) against sibilance; mids untouched |
+| Width | side channel lifted above 3 kHz on narrow mixes only; the mono sum is unchanged |
+| Soft clip | 4x-oversampled tanh shoulder that rounds the first ~1.5 dB of peaks before the limiter |
 | Limiter | 4x-oversampled look-ahead true-peak limiter, with loudness hit by iterating on integrated LUFS (ITU-R BS.1770) |
 
 Run the tests with `python -m pytest tests`.

@@ -103,51 +103,98 @@ def nearest_scale_note(m, tonic, scale):
     return min(cands, key=lambda p: abs(p - m))
 
 
-def plan_corrections(notes, tonic, scale, min_cents=15, strength=1.0,
-                     min_dur=0.15, max_cents=45, max_wobble=0.45, max_trend=0.6):
-    """Decide a constant shift (in semitones) for each note.
+SMOOTH_S = 0.2      # longer than one vibrato cycle (4.5-7 Hz), so vibrato survives drift correction
+DRIFT_HOLD_S = 0.08  # a drift must stay off for this long to count
 
-    Only clearly held notes are touched. Short flicks, runs and slides are
-    usually intentional (or already shaped by the singer's auto-tune), so they
-    are left exactly as recorded.
+
+def _ramp(n, hop_t, attack=0.12, release=0.04):
+    """0..1 weight across a note: the scoop into it and the fall-off at its end stay as sung."""
+    w = np.ones(n)
+    a, r = min(n // 4, int(attack / hop_t)), min(n // 6, int(release / hop_t))
+    if a:
+        w[:a] = np.linspace(0, 1, a, endpoint=False)
+    if r:
+        w[n - r:] = np.linspace(1, 0, r)
+    return w
+
+
+def plan_corrections(notes, tonic, scale, min_cents=10, strength=1.0, midi=None, hop_t=HOP / ANALYSIS_SR,
+                     min_dur=0.15, short_max_cents=35, max_cents=45, max_wobble=0.45, max_trend=0.6):
+    """Decide a per-frame shift (in semitones) for each note.
+
+    A held note gets two corrections: its overall offset (the whole note is
+    moved, as before) and its drift - the slow sag or creep of pitch inside
+    the note, measured on a curve smoothed over 0.2 s so vibrato is kept.
+    Short notes (80-150 ms) are moved only when they are clearly steady.
+    Slides, runs and notes halfway between two scale notes are left as sung.
     """
     plan = []
     for nt in notes:
         target = nearest_scale_note(nt["center"], tonic, scale)
         off_cents = 100 * (nt["center"] - target)
         dur = nt["t1"] - nt["t0"]
-        shift = 0.0
-        if abs(off_cents) < min_cents:
-            status = "in tune"
-        elif dur < min_dur:
-            status = "too short (left natural)"
+        n = nt["end"] - nt["start"]
+        frames = None
+        worst = off_cents
+        if dur < min_dur:
+            steady = nt["wobble"] < 0.15 and abs(nt["trend"]) < 0.35
+            if abs(off_cents) < min_cents:
+                status = "in tune"
+            elif steady and abs(off_cents) <= short_max_cents:
+                frames, status = np.full(n, -off_cents / 100), "corrected"
+            else:
+                status = "too short (left natural)"
         elif abs(nt["trend"]) > max_trend or nt["wobble"] > max_wobble:
             status = "slide/run (left natural)"
         elif abs(off_cents) > max_cents and not (dur >= 0.3 and nt["wobble"] < 0.2 and abs(off_cents) <= 65):
             status = "between notes (left natural)"
         else:
-            shift = -off_cents / 100 * strength
-            status = "corrected"
-        plan.append({**nt, "target": int(target), "off_cents": float(off_cents),
-                     "shift": float(shift), "status": status})
+            drift = np.zeros(n)
+            if midi is not None:
+                seg = midi[nt["start"]:nt["end"]]
+                dev = 100 * (uniform_filter1d(seg, size=min(n, max(3, int(SMOOTH_S / hop_t) | 1)), mode="nearest")
+                             - target)
+                w = _ramp(n, hop_t)
+                drift = (dev - off_cents) * w
+                sustain = w > 0.5
+                err = np.abs(off_cents + drift)
+                if sustain.any():
+                    k = np.flatnonzero(sustain)[np.argmax(err[sustain])]
+                    worst = off_cents + drift[k]
+                drifting = np.sum(sustain & (err >= min_cents + 5)) * hop_t >= DRIFT_HOLD_S
+                if sustain.any() and err[sustain].max() > max_cents:
+                    # Moving that far inside one note is a bend or a tracking glitch, not a sour note.
+                    drift, drifting, worst = np.zeros(n), False, off_cents
+            else:
+                drifting = False
+            if abs(off_cents) >= min_cents or drifting:
+                frames, status = -(off_cents + drift) / 100, "corrected"
+            else:
+                status = "in tune"
+        shift = 0.0
+        if frames is not None:
+            frames = frames * strength
+            shift = float(np.mean(frames))
+        plan.append({**nt, "target": int(target), "off_cents": float(off_cents), "worst_cents": float(worst),
+                     "shift": shift, "frames": frames, "status": status})
     # Two touching notes pulled in opposite directions means the singer was
     # sliding between them - correcting both would exaggerate the jump.
     for a, b in zip(plan, plan[1:]):
         touching = b["t0"] - a["t1"] < 0.05
-        if (touching and a["shift"] * b["shift"] < 0
+        if (touching and a["shift"] * b["shift"] < 0 and abs(a["shift"] - b["shift"]) > 0.15
                 and abs(a["center"] - b["center"]) < 1.2):
             for p in (a, b):
-                p["shift"], p["status"] = 0.0, "slide/run (left natural)"
+                p["shift"], p["frames"], p["status"] = 0.0, None, "slide/run (left natural)"
     return plan
 
 
 def shift_curve(plan, n_frames, hop_t, glide=0.03, bridge=0.15):
-    """Per-frame shift (semitones): constant within notes, smooth in between."""
+    """Per-frame shift (semitones): follows each corrected note, smooth in between."""
     curve = np.zeros(n_frames)
     active = np.zeros(n_frames, dtype=bool)
     for p in plan:
-        if p["shift"] != 0.0:
-            curve[p["start"]:p["end"]] = p["shift"]
+        if p["frames"] is not None:
+            curve[p["start"]:p["end"]] = p["frames"]
             active[p["start"]:p["end"]] = True
     # Hold the shift across short gaps between two corrected notes so the
     # consonant/transition between them moves together with them.
@@ -163,7 +210,7 @@ def shift_curve(plan, n_frames, hop_t, glide=0.03, bridge=0.15):
     return uniform_filter1d(curve, size=w, mode="nearest")
 
 
-def correct_vocals(vocals, sr, key, min_cents=15, strength=1.0, track=None, log=print):
+def correct_vocals(vocals, sr, key, min_cents=10, strength=1.0, track=None, log=print):
     """Pitch-correct a stereo vocal stem (n, 2). Returns (tuned, plan, track)."""
     mono = vocals.mean(axis=1)
     if track is None:
@@ -172,7 +219,7 @@ def correct_vocals(vocals, sr, key, min_cents=15, strength=1.0, track=None, log=
         times, midi, voiced = track["times"], track["midi"], track["voiced"]
     tonic, scale = parse_key(key)
     notes = find_notes(times, midi, voiced)
-    plan = plan_corrections(notes, tonic, scale, min_cents=min_cents, strength=strength)
+    plan = plan_corrections(notes, tonic, scale, min_cents=min_cents, strength=strength, midi=midi)
     hop_t = HOP / ANALYSIS_SR
     curve = shift_curve(plan, len(times), hop_t)
     track = {"times": times, "midi": midi, "voiced": voiced, "curve": curve}

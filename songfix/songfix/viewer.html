@@ -49,6 +49,11 @@ p { margin: 0; max-width: 65ch; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 header { display: grid; gap: 12px; }
 .lede { font-size: 17px; }
+.downloads { display: flex; flex-wrap: wrap; gap: 10px; }
+.dl { display: inline-flex; align-items: center; gap: 8px; font: 600 15px/1 var(--body); text-decoration: none; color: var(--accent-ink); background: var(--accent); border-radius: 10px; padding: 12px 18px; }
+.dl.secondary { color: var(--accent); background: none; border: 1px solid var(--accent); }
+.dl svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.dl:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 section { display: grid; gap: 16px; }
 .section-head { display: grid; gap: 6px; }
 
@@ -120,6 +125,7 @@ ol.tips { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 70c
     <span class="eyebrow">songfix · <span id="h-key"></span></span>
     <h1 id="title"></h1>
     <p class="lede" id="lede"></p>
+    <div class="downloads" id="downloads" hidden></div>
   </header>
 
   <section aria-label="Listen">
@@ -164,6 +170,7 @@ ol.tips { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 70c
     <div class="section-head">
       <h2>Mastering</h2>
       <p class="muted" id="master-sub"></p>
+      <ul class="moves" id="steps"></ul>
     </div>
     <div class="two">
       <div class="card">
@@ -193,6 +200,7 @@ const DATA = __SONGFIX_DATA__;
 const $ = (id) => document.getElementById(id);
 const fmt = (s) => { s = Math.max(0, s); const m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ":" + String(r).padStart(2, "0"); };
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
 const signed = (v) => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v);
 
 // ---------- Text ----------
@@ -230,6 +238,14 @@ else {
   ms.push(`The new master stays under ${DATA.ceiling.toString().replace("-", "−")} dBTP${clipped ? " and keeps the same punch" : ""}.`);
 }
 $("master-sub").textContent = ms.join(" ");
+// The EQ card already lists the EQ moves, so skip that step here.
+$("steps").innerHTML = (DATA.steps || []).filter((t) => !/EQ|Matched the tone/.test(t)).map((t) => `<li>${esc(t)}</li>`).join("");
+if (DATA.downloads && DATA.downloads.length) {
+  const icon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>';
+  $("downloads").innerHTML = DATA.downloads.map((d, i) =>
+    `<a class="dl${i ? " secondary" : ""}" href="${encodeURIComponent(d.file)}" download="${esc(d.file)}">${icon}Download ${esc(d.label)}</a>`).join("");
+  $("downloads").hidden = false;
+}
 const tips = [];
 if (DATA.before.bandwidth_hz < 17500) tips.push(`<b>Export WAV, not a low-bitrate MP3/M4A.</b> Your file has nothing above <span class="num">${(DATA.before.bandwidth_hz / 1000).toFixed(1)} kHz</span>; the export cut it off and no tool can bring it back.`);
 if (clipped) tips.push("<b>Leave headroom in the mixdown.</b> Peaks around −3 to −6 dB are fine. Let the master handle loudness.");
@@ -285,7 +301,7 @@ function eqChart() {
   };
   $("moves").innerHTML = picked.sort((a, b) => a[0] - b[0]).map(([f, g]) =>
     `<li><span class="num">${f >= 1000 ? (f / 1000).toFixed(1) + " kHz" : Math.round(f) + " Hz"} ${g > 0 ? "+" : "−"}${Math.abs(g).toFixed(1)} dB</span>: ${desc(f, g)}</li>`).join("") +
-    `<li>Bass below 120 Hz made mono, rumble under 25 Hz removed, ~${DATA.glue.toFixed(1)} dB of glue compression.</li>`;
+    (DATA.references && DATA.references.length ? `<li>Matched to your references: ${DATA.references.map(esc).join(", ")}</li>` : "");
 }
 if (DATA.eq) { $("eq").hidden = false; eqChart(); }
 
@@ -317,7 +333,7 @@ $("notes").innerHTML = DATA.notes.map((n, i) => `
   <article class="note">
     <div class="note-top">
       <span class="note-name">${n.note}</span>
-      <span class="cents"><span class="was">${signed(n.off)}¢ ${n.off > 0 ? "sharp" : "flat"}</span> → <span class="now">${signed(n.after_off)}¢</span></span>
+      <span class="cents"><span class="was">${signed(n.off)}¢ ${n.off > 0 ? "sharp" : "flat"}${n.drift ? " (drifted)" : ""}</span> → <span class="now">${signed(n.after_off)}¢</span></span>
     </div>
     ${noteChart(n)}
     <div class="note-foot">

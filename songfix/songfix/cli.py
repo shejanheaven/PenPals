@@ -26,8 +26,8 @@ def build_parser():
     t.add_argument("--key", default="auto",
                    help="song key, e.g. 'C major', 'A minor', 'F#m', or 'chromatic' (default: auto-detect)")
     t.add_argument("--no-tune", action="store_true", help="skip vocal pitch correction")
-    t.add_argument("--min-cents", type=float, default=15,
-                   help="only fix notes at least this many cents off (default 15; 100 cents = 1 semitone)")
+    t.add_argument("--min-cents", type=float, default=10,
+                   help="only fix notes at least this many cents off (default 10; 100 cents = 1 semitone)")
     t.add_argument("--strength", type=float, default=1.0,
                    help="how far to pull off notes toward the right pitch, 0-1 (default 1.0)")
     t.add_argument("--vocals", help="use your own vocal stem instead of auto-separating")
@@ -39,11 +39,14 @@ def build_parser():
 
     m = p.add_argument_group("mastering")
     m.add_argument("--no-master", action="store_true", help="skip mastering")
-    m.add_argument("--loudness", type=float, default=-9.0,
-                   help="target loudness in LUFS (default -9; streaming-safe: -14, loud rap/EDM: -7)")
+    m.add_argument("--loudness", type=float, default=None,
+                   help="target loudness in LUFS (default: your reference songs' loudness, otherwise -9 to -8; "
+                        "streaming-safe: -14, loud rap/EDM: -7)")
     m.add_argument("--ceiling", type=float, default=-1.0,
                    help="true-peak ceiling in dBTP (default -1.0, prevents clipping after MP3/streaming)")
-    m.add_argument("--reference", help="a song whose sound you like - the EQ moves your track toward it")
+    m.add_argument("--reference", help="a song whose sound you like - the EQ moves your track toward it "
+                                       "(default: the closest songs in the references folder)")
+    m.add_argument("--no-references", action="store_true", help="ignore the references folder")
     m.add_argument("--eq-amount", type=float, default=0.5,
                    help="how strongly to apply the automatic EQ, 0-1 (default 0.5)")
     m.add_argument("--no-glue", action="store_true", help="skip the gentle bus compressor")
@@ -110,10 +113,21 @@ def main(argv=None):
     if not args.no_master:
         from .master import master
         reference = audio_io.load(args.reference) if args.reference else None
+        picked, loudness = None, args.loudness
+        if reference is None and not args.no_references:
+            from . import references
+            picked = references.pick(tuned_mix, SR, references.library(log=log))
+            if picked:
+                log(f"  matching to references: {', '.join(picked['names'])}")
+                if loudness is None:
+                    loudness = float(np.clip(picked["lufs"], -11.0, -7.0))
         log("  mastering...")
-        final, minfo = master(tuned_mix, SR, target_lufs=args.loudness, ceiling_dbtp=args.ceiling,
-                              reference=reference, eq_amount=args.eq_amount,
+        final, minfo = master(tuned_mix, SR, target_lufs=loudness, ceiling_dbtp=args.ceiling,
+                              reference=reference, target_curve=picked["curve"] if picked else None,
+                              eq_amount=0.7 if (picked or reference is not None) else args.eq_amount,
                               glue=not args.no_glue, log=log)
+        if picked:
+            minfo["references"] = picked["names"]
         report["mastering"] = minfo
     report["after"] = analysis.measure(final, SR)
 
@@ -122,7 +136,7 @@ def main(argv=None):
     audio_io.save_mp3(out_dir / f"{name}.mp3", final)
 
     report["notes"] = [{k: (round(v, 3) if isinstance(v, float) else v)
-                        for k, v in p.items() if k not in ("start", "end")} for p in plan]
+                        for k, v in p.items() if k not in ("start", "end", "frames")} for p in plan]
     if track is not None:
         step = 2  # ~23 ms resolution is plenty for plotting
         report["pitch_track"] = {
@@ -137,10 +151,22 @@ def main(argv=None):
         from .viewer import write_page
         log("  writing before/after page...")
         page = write_page(report, out_dir, mix, final, vocals=vocals,
-                          tuned=tuned if plan else None, final_mp3=out_dir / f"{name}.mp3")
-        if not args.no_open:
-            import webbrowser
-            webbrowser.open(page.resolve().as_uri())
+                          tuned=tuned if plan else None, final_mp3=out_dir / f"{name}.mp3",
+                          downloads=[f"{name}.wav", f"{name}.mp3"])
     log(f"  after:  {report['after']['lufs']} LUFS, true peak {report['after']['true_peak_dbtp']} dBTP")
     log(f"done in {time.time() - t_start:.0f}s -> {out_dir}")
+    if not args.no_page and not args.no_open:
+        import webbrowser
+        if sys.stdin is not None and sys.stdin.isatty():
+            # Served over local http so seeking, exact loudness matching and the download buttons all work.
+            from .viewer import serve
+            server, url = serve(out_dir)
+            webbrowser.open(url)
+            try:
+                input("  your before/after page is open in the browser - press Enter here when you're done listening ")
+            except EOFError:
+                pass
+            server.shutdown()
+        else:
+            webbrowser.open(page.resolve().as_uri())
     return out_dir

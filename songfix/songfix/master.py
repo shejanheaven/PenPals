@@ -1,4 +1,4 @@
-"""Mastering chain: cleanup EQ, tonal smoothing, mono bass, glue, true-peak limiter."""
+"""Mastering chain: cleanup, tonal EQ, multiband control, width, glue, soft clip, true-peak limiter."""
 import numpy as np
 import pyloudnorm as pyln
 from numba import njit
@@ -37,18 +37,21 @@ def band_spectrum(x, sr, n_fft=32768):
     return centers, levels
 
 
-def design_eq(x, sr, reference=None, amount=0.5, max_db=2.5):
+def design_eq(x, sr, reference=None, target=None, amount=0.5, max_db=2.5):
     """Return (centers, gain_db) for a gentle corrective EQ curve.
 
     Without a reference: smooths out bumps and holes relative to the song's
     own overall tonal shape (no genre target is imposed).
-    With a reference track: moves the song's tonal balance towards it.
+    With a reference track, or a target curve (centers, levels) averaged from
+    several references: moves the song's tonal balance towards it.
     """
     centers, lvl = band_spectrum(x, sr)
     logf = np.log2(centers)
     band = (centers >= 40) & (centers <= 14000)
     if reference is not None:
-        rc, rl = band_spectrum(reference, sr)
+        target = band_spectrum(reference, sr)
+    if target is not None:
+        rc, rl = target
         rl = np.interp(logf, np.log2(rc), rl)
         diff = rl - lvl
         diff -= np.mean(diff[band])
@@ -114,6 +117,66 @@ def glue_compress(x, sr, ratio=1.5, target_gr_db=1.0, attack=0.03, release=0.25)
     return x * (gain * makeup)[:, None], float(np.percentile(gr, 95))
 
 
+def split_bands(x, sr, lo=150.0, hi=5000.0):
+    """Low / mid / high bands that add back to exactly x (complementary split)."""
+    low = signal.sosfiltfilt(signal.butter(4, lo, "lp", fs=sr, output="sos"), x, axis=0)
+    rest = x - low
+    high = signal.sosfiltfilt(signal.butter(4, hi, "hp", fs=sr, output="sos"), rest, axis=0)
+    return low, rest - high, high
+
+
+def band_compress(x, sr, ratio, attack, release, percentile, knee_db=6.0):
+    """Stereo-linked soft-knee compressor, threshold at a loudness percentile of the band itself.
+
+    Returns (y, gain reduction in dB at the 99th percentile)."""
+    det = np.sqrt(np.mean(x ** 2, axis=1)) * np.sqrt(2)
+    att, rel = np.exp(-1 / (attack * sr)), np.exp(-1 / (release * sr))
+    env_db = db(np.sqrt(_env_follow(det ** 2, att, rel)))
+    active = env_db > env_db.max() - 40
+    threshold = np.percentile(env_db[active], percentile)
+    over = env_db - threshold
+    slope = 1 - 1 / ratio
+    gr = np.where(over <= -knee_db / 2, 0.0,
+                  np.where(over >= knee_db / 2, over * slope, slope * (over + knee_db / 2) ** 2 / (2 * knee_db)))
+    return x * (10 ** (-gr / 20))[:, None], float(np.percentile(gr, 99))
+
+
+def multiband(x, sr):
+    """Keep the low end steady and take the edge off sibilance and harsh peaks; mids untouched."""
+    low, mid, high = split_bands(x, sr)
+    low, low_gr = band_compress(low, sr, ratio=2.0, attack=0.03, release=0.2, percentile=80)
+    high, high_gr = band_compress(high, sr, ratio=3.0, attack=0.002, release=0.06, percentile=97)
+    return low + mid + high, low_gr, high_gr
+
+
+def correlation(x):
+    if np.std(x[:, 0]) == 0 or np.std(x[:, 1]) == 0:
+        return 1.0
+    return float(np.corrcoef(x[:, 0], x[:, 1])[0, 1])
+
+
+def widen_highs(x, sr, gain_db, freq=3000.0):
+    """Lift the side channel above `freq`: a wider top end that sums to the same mono."""
+    mid = (x[:, 0] + x[:, 1]) / 2
+    side = (x[:, 0] - x[:, 1]) / 2
+    side_hi = signal.sosfiltfilt(signal.butter(2, freq, "hp", fs=sr, output="sos"), side)
+    side = side + side_hi * (10 ** (gain_db / 20) - 1)
+    return np.stack([mid + side, mid - side], axis=1)
+
+
+def soft_clip(x, ceiling, knee_db=1.0, over_db=1.5):
+    """Round off peaks, 4x oversampled so it adds no aliasing.
+
+    Linear up to knee_db below `ceiling`, then a tanh shoulder that never goes
+    more than over_db above it. The limiter after it catches what is left."""
+    k = ceiling * 10 ** (-knee_db / 20)
+    top = ceiling * 10 ** (over_db / 20)
+    up = signal.resample_poly(x, OVERSAMPLE, 1, axis=0)
+    a = np.abs(up)
+    shaped = np.where(a <= k, a, k + (top - k) * np.tanh((a - k) / (top - k)))
+    return signal.resample_poly(np.sign(up) * shaped, 1, OVERSAMPLE, axis=0)[: len(x)]
+
+
 @njit(cache=True)
 def _release(g, coef):
     out = np.empty_like(g)
@@ -145,29 +208,64 @@ def limit(x, sr, ceiling_dbtp=-1.0, lookahead=0.002, release=0.08):
     return x * g[:, None], float(db(g.min()))
 
 
-def master(x, sr, target_lufs=-9.0, ceiling_dbtp=-1.0, reference=None,
+def auto_loudness(before_lufs):
+    """Commercial loudness (-9 to -8 LUFS) that never turns a loud song down, but never past -8 so it keeps its punch."""
+    return float(np.clip(before_lufs, -9.0, -8.0))
+
+
+def master(x, sr, target_lufs=None, ceiling_dbtp=-1.0, reference=None, target_curve=None,
            eq_amount=0.5, glue=True, log=print):
+    """Master x. target_lufs=None means auto_loudness. info["steps"] says what was done, in plain words."""
     meter = pyln.Meter(sr)
-    info = {}
+    info, steps = {}, []
+    if target_lufs is None:
+        target_lufs = auto_loudness(meter.integrated_loudness(x))
     y = highpass(x, sr, 25.0)
     y = mono_bass(y, sr, 120.0)
-    centers, gain_db = design_eq(y, sr, reference=reference, amount=eq_amount)
+    steps.append("Removed sub-rumble below 25 Hz and made the bass mono below 120 Hz")
+    centers, gain_db = design_eq(y, sr, reference=reference, target=target_curve, amount=eq_amount)
     info["eq"] = {"freqs": centers.tolist(), "gain_db": gain_db.tolist()}
     y = apply_eq(y, sr, centers, gain_db)
+    moves = sorted(zip(centers, gain_db), key=lambda fg: -abs(fg[1]))[:4]
+    matched = reference is not None or target_curve is not None
+    steps.append(("Matched the tone of your reference songs" if matched else "Tonal-balance EQ") +
+                 ", biggest moves: " + ", ".join(f"{f:.0f} Hz {g:+.1f} dB" for f, g in sorted(moves)))
+    y, low_gr, high_gr = multiband(y, sr)
+    info["multiband"] = {"low_gr_db": low_gr, "high_gr_db": high_gr}
+    steps.append(f"Steadied the low end (~{low_gr:.1f} dB on the biggest hits) and tamed sibilance and "
+                 f"harsh peaks (~{high_gr:.1f} dB)")
+    corr = correlation(y)
+    width = 1.5 if corr > 0.9 else 1.0 if corr > 0.8 else 0.0
+    if width:
+        y = widen_highs(y, sr, width)
+        steps.append(f"Widened the top end by {width:.1f} dB (the mix was narrow; mono playback is unchanged)")
+    info["width_db"] = width
     if glue:
         y, gr = glue_compress(y, sr)
         info["glue_gr_db"] = gr
-    # Iterate: limiting lowers loudness a little, so re-aim a few times.
-    gain_db_total = target_lufs - meter.integrated_loudness(y)
-    for _ in range(4):
-        out, max_gr = limit(y * 10 ** (gain_db_total / 20), sr, ceiling_dbtp - 0.1)
-        err = target_lufs - meter.integrated_loudness(out)
-        if abs(err) < 0.1:
-            break
-        gain_db_total += err
+        steps.append(f"Glue compression: ~{gr:.1f} dB on the loudest parts")
+
+    ceiling = 10 ** (ceiling_dbtp / 20)
+
+    def finish(target):
+        # Iterate: clipping and limiting lower loudness a little, so re-aim a few times.
+        g = target - meter.integrated_loudness(y)
+        for _ in range(5):
+            out, max_gr = limit(soft_clip(y * 10 ** (g / 20), ceiling), sr, ceiling_dbtp - 0.1)
+            err = target - meter.integrated_loudness(out)
+            if abs(err) < 0.1:
+                break
+            g += err
+        return out, max_gr
+
+    out, max_gr = finish(target_lufs)
     # Final safety: make sure no inter-sample peak gets through.
     tp = true_peak(out)
-    if tp > 10 ** (ceiling_dbtp / 20):
-        out *= 10 ** (ceiling_dbtp / 20) / tp
+    if tp > ceiling:
+        out *= ceiling / tp
+    info["target_lufs"] = round(target_lufs, 2)
     info["limiter_max_gr_db"] = -max_gr
+    steps.append(f"Soft clipper + true-peak limiter: up to {-max_gr:.1f} dB of peak reduction, "
+                 f"{target_lufs:.1f} LUFS, ceiling {ceiling_dbtp} dBTP")
+    info["steps"] = steps
     return out, info
