@@ -48,6 +48,8 @@ def build_parser():
                    help="how strongly to apply the automatic EQ, 0-1 (default 0.5)")
     m.add_argument("--no-glue", action="store_true", help="skip the gentle bus compressor")
     m.add_argument("--no-stems", action="store_true", help="don't save the separated vocal/instrumental files")
+    p.add_argument("--no-page", action="store_true", help="don't write the before/after listening page")
+    p.add_argument("--no-open", action="store_true", help="write the page but don't open it in the browser")
     return p
 
 
@@ -65,6 +67,7 @@ def main(argv=None):
     log(f"  before: {report['before']['lufs']} LUFS, true peak {report['before']['true_peak_dbtp']} dBTP")
 
     plan, track = [], None
+    vocals = tuned = None
     tuned_mix = mix
     if not args.no_tune or args.vocal_level:
         if args.vocals:
@@ -90,6 +93,7 @@ def main(argv=None):
                 report["key_candidates"] = ranked
                 log(f"  detected key: {key} (same notes as {analysis.relative_key(key)})")
                 if ranked[0][1] - ranked[1][1] < 0.03 and ranked[1][0] != analysis.relative_key(key):
+                    report["key_close"] = ranked[1][0]
                     log(f"  (close call with {ranked[1][0]} - if notes sound wrong, rerun with --key)")
             report["key"] = key
             tuned, plan, track = tune.correct_vocals(
@@ -129,6 +133,14 @@ def main(argv=None):
     (out_dir / "report.json").write_text(json.dumps(report, indent=1))
     from .report import write_markdown
     write_markdown(report, out_dir / "report.md")
+    if not args.no_page:
+        from .viewer import write_page
+        log("  writing before/after page...")
+        page = write_page(report, out_dir, mix, final, vocals=vocals,
+                          tuned=tuned if plan else None, final_mp3=out_dir / f"{name}.mp3")
+        if not args.no_open:
+            import webbrowser
+            webbrowser.open(page.resolve().as_uri())
     log(f"  after:  {report['after']['lufs']} LUFS, true peak {report['after']['true_peak_dbtp']} dBTP")
     log(f"done in {time.time() - t_start:.0f}s -> {out_dir}")
     return out_dir

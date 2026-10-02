@@ -26,6 +26,7 @@ You get a folder `my song_songfix/` with:
 |---|---|
 | `my song (songfix).wav` | the finished master (24-bit WAV, use this for distribution) |
 | `my song (songfix).mp3` | 320 kbps MP3 for sharing |
+| `index.html` | the before/after page, opened in your browser when the run finishes: A/B the original against the fix, a pitch chart for every corrected note with a Listen button, and the mastering meters and EQ. It plays `before.mp3`, `after.mp3`, `vocal_before.mp3` and `vocal_after.mp3` from the same folder |
 | `report.md` | what was fixed and changed |
 | `vocals_original.wav`, `vocals_tuned.wav`, `instrumental.wav` | the separated stems, before and after tuning |
 
@@ -56,6 +57,10 @@ python -m songfix song.wav --best-separation
 # Only master, or only tune:
 python -m songfix song.wav --no-tune
 python -m songfix song.wav --no-master
+
+# Don't open the before/after page in the browser (or don't write it at all):
+python -m songfix song.wav --no-open
+python -m songfix song.wav --no-page
 ```
 
 Run `python -m songfix --help` for everything.

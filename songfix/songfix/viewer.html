@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__SONGFIX_TITLE__ · songfix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one listening console on top (waveform + A/B switch), then evidence below: fixed notes as tuner strips, then the mastering readout. */
+:root {
+  --bg: #eceef2;
+  --panel: #ffffff;
+  --ink: #14161b;
+  --muted: #5b6170;
+  --line: #d3d7df;
+  --accent: #2945cf;
+  --accent-ink: #ffffff;
+  --off: #c9402f;
+  --on: #16875a;
+  --wave: #b9c0cd;
+  --zone: rgba(22, 135, 90, 0.10);
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101217; --panel: #191c23; --ink: #e7e9ee; --muted: #9aa1ae; --line: #2b303b;
+    --accent: #8296ff; --accent-ink: #0d0f14; --off: #ff7b69; --on: #45c98d; --wave: #3a404d;
+    --zone: rgba(69, 201, 141, 0.12); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101217; --panel: #191c23; --ink: #e7e9ee; --muted: #9aa1ae; --line: #2b303b;
+  --accent: #8296ff; --accent-ink: #0d0f14; --off: #ff7b69; --on: #45c98d; --wave: #3a404d;
+  --zone: rgba(69, 201, 141, 0.12); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 400 15px/1.55 var(--body); padding-inline: 16px; padding-block: 28px 56px; }
+.wrap { max-width: 900px; margin: 0 auto; display: grid; gap: 40px; }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 6vw, 46px); font-weight: 800; font-stretch: 118%; letter-spacing: -0.01em; line-height: 1.05; }
+h2 { font-size: 21px; font-weight: 700; font-stretch: 112%; }
+p { margin: 0; max-width: 65ch; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.muted { color: var(--muted); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+header { display: grid; gap: 12px; }
+.lede { font-size: 17px; }
+section { display: grid; gap: 16px; }
+.section-head { display: grid; gap: 6px; }
+
+/* Console */
+.console { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 16px; }
+.wave-box { position: relative; cursor: pointer; }
+canvas#wave { width: 100%; height: 132px; display: block; }
+.markers { position: relative; height: 22px; }
+.markers.two-rows { height: 48px; }
+.marker { position: absolute; transform: translateX(-50%); font: 500 11px/1 var(--mono); color: var(--accent); background: none; border: 1px solid var(--accent); border-radius: 999px; padding: 4px 7px; cursor: pointer; white-space: nowrap; }
+.marker:hover, .marker:focus-visible { background: var(--accent); color: var(--accent-ink); outline: none; }
+.transport { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+.play { width: 52px; height: 52px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; cursor: pointer; flex: none; }
+.play:focus-visible, .seg button:focus-visible, .switch input:focus-visible + span, .listen:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.play svg { width: 20px; height: 20px; fill: currentColor; }
+.clock { font: 500 14px/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); min-width: 92px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--bg); }
+.seg button { font: 600 14px/1 var(--body); border: 0; background: none; color: var(--muted); padding: 10px 16px; border-radius: 7px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.seg button[data-side="after"][aria-pressed="true"] { color: var(--accent); }
+.switches { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-left: auto; }
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; user-select: none; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch span.track { width: 34px; height: 20px; border-radius: 999px; background: var(--line); position: relative; transition: background .15s; flex: none; }
+.switch span.track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--panel); transition: transform .15s; }
+.switch input:checked + span.track { background: var(--accent); }
+.switch input:checked + span.track::after { transform: translateX(14px); }
+.hint { font-size: 13px; color: var(--muted); }
+.status { font-size: 13px; color: var(--muted); min-height: 1.2em; }
+
+/* Notes */
+.notes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.note { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; min-width: 0; }
+.note-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.note-name { font: 700 24px/1 var(--display); font-stretch: 112%; }
+.cents { font: 500 13px/1.3 var(--mono); font-variant-numeric: tabular-nums; }
+.cents .was { color: var(--off); }
+.cents .now { color: var(--on); }
+.note svg { width: 100%; height: auto; display: block; }
+.note-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.listen { font: 600 13px/1 var(--body); color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.listen:hover { border-color: var(--accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+
+/* Mastering */
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+@media (max-width: 720px) { .two { grid-template-columns: minmax(0, 1fr); } .switches { margin-left: 0; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 12px/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+td.v { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.bad { color: var(--off); }
+td.good { color: var(--on); }
+#eq svg { width: 100%; height: auto; display: block; }
+ul.moves { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+
+/* Next */
+pre { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; overflow-x: auto; font: 13px/1.6 var(--mono); }
+ol.tips { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 70ch; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">songfix · <span id="h-key"></span></span>
+    <h1 id="title"></h1>
+    <p class="lede" id="lede"></p>
+  </header>
+
+  <section aria-label="Listen">
+    <div class="console">
+      <div class="wave-box" id="wave-box" role="slider" aria-label="Playback position" tabindex="0" aria-valuemin="0" aria-valuenow="0">
+        <canvas id="wave"></canvas>
+      </div>
+      <div class="markers" id="markers" aria-label="Fixed notes"></div>
+      <div class="transport">
+        <button class="play" id="play" aria-label="Play">
+          <svg viewBox="0 0 20 20" id="play-icon"><path d="M5 3.5v13l11-6.5z"/></svg>
+        </button>
+        <span class="clock" id="clock">0:00 / 0:00</span>
+        <div class="seg" role="group" aria-label="Version">
+          <button data-side="before" aria-pressed="false" id="btn-before">Original</button>
+          <button data-side="after" aria-pressed="true" id="btn-after">songfix</button>
+        </div>
+        <div class="switches">
+          <label class="switch"><input type="checkbox" id="match" checked><span class="track"></span>Match loudness</label>
+          <label class="switch" id="solo-wrap"><input type="checkbox" id="solo"><span class="track"></span>Vocal only</label>
+        </div>
+      </div>
+      <p class="hint">Flip between versions while it plays; the song keeps going. Keys: <span class="num">Space</span> play, <span class="num">A</span> original, <span class="num">B</span> songfix. Switch to Original to see its clipping: the pink peaks above the dashed 0 dB line.</p>
+      <p class="status" id="status" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section id="notes-section">
+    <div class="section-head">
+      <h2 id="notes-title"></h2>
+      <p class="muted" id="notes-sub"></p>
+    </div>
+    <div class="legend">
+      <span><i style="background: var(--off)"></i>Your take</span>
+      <span><i style="background: var(--on)"></i>After songfix</span>
+      <span><i style="background: var(--zone); height: 10px"></i>±10 cents, sounds in tune</span>
+    </div>
+    <div class="notes" id="notes"></div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Mastering</h2>
+      <p class="muted" id="master-sub"></p>
+    </div>
+    <div class="two">
+      <div class="card">
+        <span class="eyebrow">Meters</span>
+        <div class="table-scroll"><table id="meters"></table></div>
+      </div>
+      <div class="card" id="eq" hidden>
+        <span class="eyebrow">Tone-shaping EQ applied</span>
+        <div id="eq-chart"></div>
+        <ul class="moves" id="moves"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Your next song</h2>
+      <p class="muted">Drag any song onto <span class="num">fix-my-song.bat</span> in your songfix folder. A page like this one opens when it's done. Need a different key or loudness? Run it from a terminal in that folder:</p>
+    </div>
+    <pre>.venv\Scripts\python -m songfix "next song.wav" --key "A minor" --loudness -8</pre>
+    <ol class="tips" id="tips"></ol>
+  </section>
+</div>
+
+<script>
+const DATA = __SONGFIX_DATA__;
+const $ = (id) => document.getElementById(id);
+const fmt = (s) => { s = Math.max(0, s); const m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ":" + String(r).padStart(2, "0"); };
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const signed = (v) => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v);
+
+// ---------- Text ----------
+document.title = DATA.song + " · songfix";
+$("title").textContent = DATA.song + ", before & after";
+$("h-key").textContent = DATA.key ? "Key of " + DATA.key + (DATA.relative_key ? " / " + DATA.relative_key : "") : "mastering only";
+const fixedN = DATA.notes.length;
+const c = DATA.counts || {};
+const sungN = Object.values(c).reduce((a, b) => a + b, 0);
+const clipped = DATA.before.true_peak_dbtp > 0;
+const did = [];
+if (DATA.tuned) did.push(fixedN ? `${fixedN} sour note${fixedN === 1 ? "" : "s"} pulled onto pitch` : "every sung note checked (all already in tune)");
+if (DATA.mastered) {
+  if (clipped) did.push("clipping removed");
+  did.push(`mastered to ${DATA.after.lufs.toFixed(1)} LUFS with a ${DATA.ceiling.toString().replace("-", "−")} dBTP ceiling`);
+}
+$("lede").textContent = did.join(", ").replace(/^./, (m) => m.toUpperCase()) + "." + (DATA.tuned ? " Everything else in your vocal is untouched." : "");
+if (!DATA.tuned) {
+  $("notes-section").hidden = true;
+  $("solo-wrap").hidden = true;
+} else {
+  $("notes-title").textContent = fixedN ? `${fixedN} note${fixedN === 1 ? "" : "s"} fixed` : "No notes needed fixing";
+  const natural = (c["slide/run (left natural)"] || 0) + (c["between notes (left natural)"] || 0);
+  const inTune = c["in tune"] || 0;
+  let sub = `Out of ${sungN} sung notes, ${inTune} were already in tune.`;
+  if (sungN && inTune / sungN > 0.85) sub += " Your vocal was probably already auto-tuned, so most notes sat on pitch.";
+  if (natural) sub += ` ${natural} off-centre note${natural === 1 ? " was a slide or run and was" : "s were slides or runs and were"} left as you sang ${natural === 1 ? "it" : "them"}.`;
+  if (fixedN) sub += " Turn on Vocal only and press Listen to hear each fix clearly.";
+  $("notes-sub").textContent = sub;
+}
+const ms = [];
+if (!DATA.mastered) ms.push("Mastering was skipped for this run.");
+else {
+  if (clipped) ms.push("The original peaks above 0 dB, so it crackles on many speakers and gets distorted again when Spotify or SoundCloud re-encode it.");
+  ms.push(`The new master stays under ${DATA.ceiling.toString().replace("-", "−")} dBTP${clipped ? " and keeps the same punch" : ""}.`);
+}
+$("master-sub").textContent = ms.join(" ");
+const tips = [];
+if (DATA.before.bandwidth_hz < 17500) tips.push(`<b>Export WAV, not a low-bitrate MP3/M4A.</b> Your file has nothing above <span class="num">${(DATA.before.bandwidth_hz / 1000).toFixed(1)} kHz</span>; the export cut it off and no tool can bring it back.`);
+if (clipped) tips.push("<b>Leave headroom in the mixdown.</b> Peaks around −3 to −6 dB are fine. Let the master handle loudness.");
+if (DATA.tuned) tips.push(`<b>Got the vocal stem?</b> Run it with <span class="num">--vocals vocal.wav --beat beat.wav</span> for the cleanest tuning.`);
+if (DATA.key_close) tips.push(`<b>Key was a close call</b> with ${DATA.key_close}. If any fixed note sounds wrong, rerun with <span class="num">--key "${DATA.key_close}"</span>.`);
+$("tips").innerHTML = tips.map((t) => `<li>${t}</li>`).join("");
+
+// ---------- Meters ----------
+const rows = [
+  ["Loudness", "lufs", " LUFS", (b, a) => null],
+  ["True peak", "true_peak_dbtp", " dBTP", (b, a) => [b > -1 ? "bad" : "", a <= -1 ? "good" : "bad"]],
+  ["Clipped samples", "clipped_samples", "", (b, a) => [b > 0 ? "bad" : "", a === 0 ? "good" : "bad"]],
+  ["Peak-to-loudness", "plr_db", " dB", () => null],
+  ["Stereo correlation", "stereo_correlation", "", () => null],
+];
+let mt = "<tr><th></th><th>Original</th><th>songfix</th></tr>";
+for (const [label, key, unit, cls] of rows) {
+  const b = DATA.before[key], a = DATA.after[key];
+  const k = cls(b, a) || ["", ""];
+  const f = (v) => (typeof v === "number" && !Number.isInteger(v) ? v.toFixed(Math.abs(v) < 2 ? 2 : 1) : v).toString().replace("-", "−");
+  mt += `<tr><td>${label}</td><td class="v ${k[0]}">${f(b)}${unit}</td><td class="v ${k[1]}">${f(a)}${unit}</td></tr>`;
+}
+$("meters").innerHTML = mt;
+
+// ---------- EQ chart ----------
+function eqChart() {
+  const W = 420, H = 170, L = 34, R = 10, T = 12, B = 26;
+  const fmin = 30, fmax = 16000, gmax = 3;
+  const x = (f) => L + (Math.log(f / fmin) / Math.log(fmax / fmin)) * (W - L - R);
+  const y = (g) => T + (1 - (g + gmax) / (2 * gmax)) * (H - T - B);
+  const pts = DATA.eq.freqs.map((f, i) => [f, DATA.eq.gain_db[i]]).filter(([f]) => f >= fmin && f <= fmax);
+  let grid = "";
+  for (const g of [-3, -2, -1, 0, 1, 2, 3]) {
+    grid += `<line x1="${L}" x2="${W - R}" y1="${y(g)}" y2="${y(g)}" stroke="var(--line)" stroke-width="${g === 0 ? 1.2 : 0.6}"/>`;
+    if (g % 1 === 0 && g !== 0 && Math.abs(g) !== 1) grid += `<text x="${L - 6}" y="${y(g) + 4}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="var(--mono)">${g > 0 ? "+" : "−"}${Math.abs(g)}</text>`;
+  }
+  grid += `<text x="${L - 6}" y="${y(0) + 4}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="var(--mono)">0 dB</text>`;
+  for (const [f, lab] of [[50, "50"], [100, "100"], [250, "250"], [500, "500"], [1000, "1k"], [2500, "2.5k"], [5000, "5k"], [10000, "10k"]]) {
+    grid += `<line x1="${x(f)}" x2="${x(f)}" y1="${T}" y2="${H - B}" stroke="var(--line)" stroke-width="0.6"/><text x="${x(f)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="var(--mono)">${lab}</text>`;
+  }
+  const line = pts.map(([f, g], i) => (i ? "L" : "M") + x(f).toFixed(1) + " " + y(g).toFixed(1)).join(" ");
+  const area = line + ` L${x(pts[pts.length - 1][0]).toFixed(1)} ${y(0)} L${x(pts[0][0]).toFixed(1)} ${y(0)} Z`;
+  $("eq-chart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="EQ curve, gain in dB against frequency">${grid}<path d="${area}" fill="var(--accent)" fill-opacity="0.14"/><path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2"/><text x="${W - R}" y="${H - 8}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="var(--mono)">Hz</text></svg>`;
+  const top = pts.slice().sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  const picked = [];
+  for (const p of top) { if (picked.every((q) => Math.abs(Math.log2(q[0] / p[0])) > 0.9)) picked.push(p); if (picked.length === 4) break; }
+  const desc = (f, g) => {
+    if (f < 300) return g > 0 ? "fills the thin spot in the low-mids, more body" : "tightens boomy low end";
+    if (f < 1000) return g < 0 ? "trims boxy, cardboard-sounding mids" : "adds warmth";
+    if (f < 4000) return g < 0 ? "softens harsh upper mids" : "brings the vocal forward";
+    if (f < 9000) return g > 0 ? "adds presence and clarity to the vocal" : "tames sibilance";
+    return g > 0 ? "adds air" : "smooths fizzy highs";
+  };
+  $("moves").innerHTML = picked.sort((a, b) => a[0] - b[0]).map(([f, g]) =>
+    `<li><span class="num">${f >= 1000 ? (f / 1000).toFixed(1) + " kHz" : Math.round(f) + " Hz"} ${g > 0 ? "+" : "−"}${Math.abs(g).toFixed(1)} dB</span>: ${desc(f, g)}</li>`).join("") +
+    `<li>Bass below 120 Hz made mono, rumble under 25 Hz removed, ~${DATA.glue.toFixed(1)} dB of glue compression.</li>`;
+}
+if (DATA.eq) { $("eq").hidden = false; eqChart(); }
+
+// ---------- Note cards ----------
+function noteChart(n) {
+  const W = 300, H = 120, L = 30, R = 6, T = 8, B = 18, cmax = 60;
+  const span = n.win[1] - n.win[0];
+  const x = (t) => L + (t / span) * (W - L - R);
+  const y = (cents) => T + (1 - (Math.max(-cmax, Math.min(cmax, cents)) + cmax) / (2 * cmax)) * (H - T - B);
+  const smooth = (arr) => arr.map(([t, v], i) => {
+    if (v === null) return [t, null];
+    const win = arr.slice(Math.max(0, i - 2), i + 3).map((p) => p[1]).filter((u) => u !== null).sort((a, b) => a - b);
+    return [t, win[Math.floor(win.length / 2)]];
+  });
+  const path = (raw) => { const arr = smooth(raw); let d = "", pen = false; for (const [t, v] of arr) { if (v === null || Math.abs(v) > 95) { pen = false; continue; } d += (pen ? "L" : "M") + x(t).toFixed(1) + " " + y(v).toFixed(1); pen = true; } return d; };
+  const n0 = x(n.t0 - n.win[0]), n1 = x(n.t1 - n.win[0]);
+  let g = `<rect x="${n0}" y="${T}" width="${n1 - n0}" height="${H - T - B}" fill="var(--line)" opacity="0.45"/>`;
+  g += `<rect x="${L}" y="${y(10)}" width="${W - L - R}" height="${y(-10) - y(10)}" fill="var(--zone)"/>`;
+  for (const cc of [-50, 0, 50]) {
+    g += `<line x1="${L}" x2="${W - R}" y1="${y(cc)}" y2="${y(cc)}" stroke="var(--line)" stroke-width="${cc === 0 ? 1 : 0.6}" ${cc ? 'stroke-dasharray="3 3"' : ""}/>`;
+    g += `<text x="${L - 4}" y="${y(cc) + 3.5}" text-anchor="end" font-size="9.5" fill="var(--muted)" font-family="var(--mono)">${cc === 0 ? n.note : (cc > 0 ? "+" : "−") + Math.abs(cc) + "¢"}</text>`;
+  }
+  g += `<text x="${(n0 + n1) / 2}" y="${H - 5}" text-anchor="middle" font-size="9.5" fill="var(--muted)" font-family="var(--mono)">${(n.t1 - n.t0).toFixed(2)} s note</text>`;
+  g += `<path d="${path(n.before)}" fill="none" stroke="var(--off)" stroke-width="1.8" stroke-linejoin="round"/>`;
+  g += `<path d="${path(n.after)}" fill="none" stroke="var(--on)" stroke-width="2" stroke-linejoin="round"/>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Pitch of ${n.note} before and after, in cents from the target">${g}</svg>`;
+}
+$("notes").innerHTML = DATA.notes.map((n, i) => `
+  <article class="note">
+    <div class="note-top">
+      <span class="note-name">${n.note}</span>
+      <span class="cents"><span class="was">${signed(n.off)}¢ ${n.off > 0 ? "sharp" : "flat"}</span> → <span class="now">${signed(n.after_off)}¢</span></span>
+    </div>
+    ${noteChart(n)}
+    <div class="note-foot">
+      <span class="num muted">at ${fmt(n.t0)}.${String(Math.round((n.t0 % 1) * 10)).slice(0, 1)}</span>
+      <button class="listen" data-t="${n.t0}">Listen</button>
+    </div>
+  </article>`).join("");
+
+// ---------- Waveform ----------
+const canvas = $("wave");
+function drawWave(pos) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.round(w * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
+  const g = canvas.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const peaks = state.side === "before" ? DATA.peaks_before : DATA.peaks;
+  const mid = h / 2, scale = (h / 2 - 4) / 1.15, n = peaks.length, bw = w / n;
+  const played = pos / DATA.duration * w;
+  const cWave = css("--wave"), cPlay = css("--accent"), cClip = css("--off");
+  for (let i = 0; i < n; i++) {
+    const px = i * bw, a = Math.min(peaks[i], 1.15) * scale;
+    g.fillStyle = px < played ? cPlay : cWave;
+    g.fillRect(px, mid - a, Math.max(1, bw - 0.6), a * 2);
+    if (peaks[i] > 1.0) { const over = (Math.min(peaks[i], 1.15) - 1) * scale; g.fillStyle = cClip; g.fillRect(px, mid - a, Math.max(1, bw - 0.6), over); g.fillRect(px, mid + a - over, Math.max(1, bw - 0.6), over); }
+  }
+  g.strokeStyle = css("--muted"); g.setLineDash([3, 4]); g.lineWidth = 0.8; g.globalAlpha = 0.6;
+  for (const yy of [mid - scale, mid + scale]) { g.beginPath(); g.moveTo(0, yy); g.lineTo(w, yy); g.stroke(); }
+  g.setLineDash([]); g.globalAlpha = 1;
+  g.fillStyle = css("--ink"); g.fillRect(played - 1, 0, 2, h);
+}
+function placeMarkers() {
+  const box = $("markers");
+  box.innerHTML = DATA.notes.map((n) => `<button class="marker" data-t="${n.t0}" style="left:${(n.t0 / DATA.duration * 100).toFixed(2)}%" aria-label="Jump to fixed note ${n.note} at ${fmt(n.t0)}">${n.note}</button>`).join("");
+  // Keep edge markers inside the box, and drop a marker to a second row
+  // when it would collide with its neighbour.
+  let lastPct = -100, row = 0, twoRows = false;
+  for (const m of box.children) {
+    const pct = parseFloat(m.style.left);
+    if (pct < 4) m.style.transform = "none";
+    if (pct > 96) m.style.transform = "translateX(-100%)";
+    row = pct - lastPct < 6 ? 1 - row : 0;
+    if (row) { m.style.top = "26px"; twoRows = true; }
+    lastPct = pct;
+  }
+  box.classList.toggle("two-rows", twoRows);
+}
+// ---------- Audio engine ----------
+const SOURCES = { mix: ["before.mp3", "after.mp3"], vocal: ["vocal_before.mp3", "vocal_after.mp3"] };
+const state = { side: "after", mode: "mix", playing: false, pos: 0, match: true };
+let ctx = null;
+const pairs = {};
+function pair(mode) {
+  if (pairs[mode]) return pairs[mode];
+  const els = SOURCES[mode].map((src) => { const a = new Audio(); a.src = src; a.preload = "auto"; a.playsInline = true; return a; });
+  const p = { before: els[0], after: els[1], gains: null };
+  if (ctx) {
+    p.gains = {};
+    for (const side of ["before", "after"]) {
+      const node = ctx.createMediaElementSource(p[side]);
+      const gain = ctx.createGain();
+      node.connect(gain).connect(ctx.destination);
+      p.gains[side] = gain;
+    }
+  }
+  p.after.addEventListener("ended", () => { if (state.mode === mode) { setPlaying(false); state.pos = 0; } });
+  p.before.addEventListener("waiting", () => { $("status").textContent = "Loading audio…"; });
+  p.after.addEventListener("waiting", () => { $("status").textContent = "Loading audio…"; });
+  for (const el of els) el.addEventListener("playing", () => { $("status").textContent = ""; });
+  pairs[mode] = p;
+  return p;
+}
+function levels(p, immediate) {
+  const beforeGain = state.match && state.mode === "mix" ? Math.pow(10, DATA.lufs_gain_db / 20) : 1;
+  const want = { before: state.side === "before" ? beforeGain : 0, after: state.side === "after" ? 1 : 0 };
+  for (const side of ["before", "after"]) {
+    if (p.gains) {
+      const g = p.gains[side].gain;
+      if (immediate) g.value = want[side]; else g.setTargetAtTime(want[side], ctx.currentTime, 0.008);
+    } else {
+      const top = Math.max(beforeGain, 1);
+      p[side].muted = want[side] === 0;
+      p[side].volume = want[side] ? want[side] / top : 1;
+    }
+  }
+}
+function ensureCtx() {
+  if (ctx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (AC && location.protocol !== "file:") { try { ctx = new AC(); } catch (e) { ctx = null; } }
+}
+function current() { return pair(state.mode); }
+async function setPlaying(on) {
+  const p = current();
+  state.playing = on;
+  $("play").setAttribute("aria-label", on ? "Pause" : "Play");
+  $("play-icon").innerHTML = on ? '<path d="M5 3.5h3.5v13H5zM11.5 3.5H15v13h-3.5z"/>' : '<path d="M5 3.5v13l11-6.5z"/>';
+  if (on) {
+    ensureCtx();
+    if (ctx && ctx.state === "suspended") await ctx.resume();
+    const p2 = current();
+    p2.before.currentTime = state.pos; p2.after.currentTime = state.pos;
+    levels(p2, true);
+    try { await Promise.all([p2.before.play(), p2.after.play()]); }
+    catch (e) { $("status").textContent = "Your browser blocked playback. Press play again."; state.playing = false; }
+  } else {
+    p.before.pause(); p.after.pause();
+  }
+}
+function seek(t) {
+  ensureCtx();
+  state.pos = Math.max(0, Math.min(DATA.duration - 0.05, t));
+  const p = current();
+  p.before.currentTime = state.pos; p.after.currentTime = state.pos;
+  drawWave(state.pos);
+}
+function setSide(side) {
+  state.side = side;
+  $("btn-before").setAttribute("aria-pressed", side === "before");
+  $("btn-after").setAttribute("aria-pressed", side === "after");
+  if (pairs[state.mode]) levels(current(), false);
+  drawWave(state.pos);
+}
+function setMode(mode) {
+  const was = state.playing;
+  if (pairs[state.mode]) { const p = current(); p.before.pause(); p.after.pause(); }
+  state.mode = mode;
+  if (was) setPlaying(true); else drawWave(state.pos);
+}
+function tick() {
+  if (state.playing) {
+    const p = current();
+    const lead = p[state.side], other = p[state.side === "after" ? "before" : "after"];
+    state.pos = lead.currentTime;
+    if (Math.abs(other.currentTime - lead.currentTime) > 0.04 && !other.seeking) other.currentTime = lead.currentTime;
+  }
+  $("clock").textContent = fmt(state.pos) + " / " + fmt(DATA.duration);
+  $("wave-box").setAttribute("aria-valuenow", Math.round(state.pos));
+  drawWave(state.pos);
+  requestAnimationFrame(tick);
+}
+
+// ---------- Wiring ----------
+$("wave-box").setAttribute("aria-valuemax", Math.round(DATA.duration));
+$("play").addEventListener("click", () => { ensureCtx(); setPlaying(!state.playing); });
+$("btn-before").addEventListener("click", () => setSide("before"));
+$("btn-after").addEventListener("click", () => setSide("after"));
+$("match").addEventListener("change", (e) => { state.match = e.target.checked; if (pairs[state.mode]) levels(current(), false); });
+$("solo").addEventListener("change", (e) => { ensureCtx(); setMode(e.target.checked ? "vocal" : "mix"); });
+$("wave-box").addEventListener("click", (e) => { const r = $("wave-box").getBoundingClientRect(); seek((e.clientX - r.left) / r.width * DATA.duration); });
+$("wave-box").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") { seek(state.pos + 5); e.preventDefault(); }
+  if (e.key === "ArrowLeft") { seek(state.pos - 5); e.preventDefault(); }
+});
+function jump(t) { ensureCtx(); seek(t - 1.5); if (!state.playing) setPlaying(true); }
+$("markers").addEventListener("click", (e) => { const b = e.target.closest(".marker"); if (b) jump(+b.dataset.t); });
+$("notes").addEventListener("click", (e) => { const b = e.target.closest(".listen"); if (b) jump(+b.dataset.t); });
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input, textarea, select") || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.code === "Space" && !e.target.closest("button")) { e.preventDefault(); ensureCtx(); setPlaying(!state.playing); }
+  if (e.key === "a" || e.key === "A") setSide("before");
+  if (e.key === "b" || e.key === "B") setSide("after");
+});
+placeMarkers();
+window.addEventListener("resize", () => drawWave(state.pos));
+requestAnimationFrame(tick);
+</script>
+
+</body></html>
