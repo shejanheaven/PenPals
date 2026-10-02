@@ -38,6 +38,9 @@ def _retune_check(folder, report):
         if sel.sum() < 3:
             continue
         cents = 100 * (tune.despike(midi[sel]) - n["target"])
+        cents = cents[np.abs(cents) < 60]  # frames of the neighbouring note at the edges of very short notes
+        if len(cents) < 3:
+            continue
         k = min(len(cents), 9)
         err = float(np.median(np.abs(np.convolve(cents, np.ones(k) / k, mode="valid"))))
         if err > abs(n["worst_cents"]) + 2:

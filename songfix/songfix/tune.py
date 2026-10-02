@@ -218,7 +218,13 @@ def shift_curve(plan, n_frames, hop_t, glide=0.03, bridge=0.15):
                 curve[a + 1:b] = np.linspace(curve[a], curve[b], b - a + 1)[1:-1]
                 active[a + 1:b] = True
     w = max(1, int(round(glide / hop_t)))
-    return uniform_filter1d(curve, size=w, mode="nearest")
+    curve = uniform_filter1d(curve, size=w, mode="nearest")
+    # The glide must not spill onto a sung note that was left alone (e.g. the
+    # next note of a fast run): those stay at exactly zero shift.
+    for p in plan:
+        if p["frames"] is None:
+            curve[p["start"]:p["end"]] = 0.0
+    return curve
 
 
 def correct_vocals(vocals, sr, key, min_cents=10, strength=1.0, track=None, log=print):
@@ -245,11 +251,14 @@ def correct_vocals(vocals, sr, key, min_cents=10, strength=1.0, track=None, log=
     # left a few cents short. Only notes the first pass corrected are eligible.
     t2, m2, v2 = track_pitch(tuned.mean(axis=1), sr)
     first = [(p["t0"], p["t1"]) for p in plan if p["status"] == "corrected"]
-    plan2 = [p for p in plan_corrections(find_notes(t2, m2, v2), tonic, scale, min_cents=min(min_cents, 8),
-                                         strength=strength, midi=m2)
-             if p["status"] == "corrected" and any(p["t0"] < b and p["t1"] > a for a, b in first)]
+    full2 = plan_corrections(find_notes(t2, m2, v2), tonic, scale, min_cents=min(min_cents, 8),
+                             strength=strength, midi=m2)
+    for p in full2:
+        if p["status"] == "corrected" and not any(p["t0"] < b and p["t1"] > a for a, b in first):
+            p["frames"], p["shift"], p["status"] = None, 0.0, "left for pass one"
+    plan2 = [p for p in full2 if p["status"] == "corrected"]
     if plan2:
-        curve2 = shift_curve(plan2, len(t2), hop_t)
+        curve2 = shift_curve(full2, len(t2), hop_t)
         tuned = _render(tuned, plan2, t2, m2, v2, curve2, sr)
         track["curve"] = curve + curve2[:len(curve)]
     log(f"  corrected {n_fixed} of {len(plan)} sung notes" + (f" ({len(plan2)} touched up in a second pass)"
