@@ -1,15 +1,20 @@
 // Display helpers + mapping what Claude saw onto database variants.
 
-export const GAME_LABEL = { pokemon: "Pokémon", yugioh: "Yu-Gi-Oh!" };
+export const GAME_LABEL = { pokemon: "Pokémon", yugioh: "Yu-Gi-Oh!", mtg: "Magic" };
+export const GAMES = Object.entries(GAME_LABEL).map(([value, label]) => ({ value, label }));
+
+/** Pokémon and Magic price per finish (variants); Yu-Gi-Oh! prices per printing. */
+export const hasVariants = (card) => card.game === "pokemon" || card.game === "mtg";
 
 export function numberLabel(card) {
   if (card.game === "pokemon") return card.setTotal ? `${card.number}/${card.setTotal}` : card.number ? `#${card.number}` : "";
+  if (card.game === "mtg") return [card.setCode, card.number && `#${card.number}`].filter(Boolean).join(" ");
   return "";
 }
 
-/** Options the user can choose between: Pokémon variants or Yu-Gi-Oh! printings. */
+/** Options the user can choose between: Pokémon/Magic finishes or Yu-Gi-Oh! printings. */
 export function selectionOptions(card) {
-  if (card.game === "pokemon") return (card.variants || []).map((v) => ({ key: v.key, label: v.label, price: v.market ?? v.mid ?? v.low }));
+  if (hasVariants(card)) return (card.variants || []).map((v) => ({ key: v.key, label: v.label, price: v.market ?? v.mid ?? v.low }));
   return (card.printings || []).map((p) => ({ key: p.key, label: `${p.setCode} · ${p.rarity}`, sub: p.setName, price: p.price }));
 }
 
@@ -23,6 +28,10 @@ export function defaultSelection(card, ident) {
   if (card.game === "yugioh") return card.printingKey || card.printings?.[0]?.key || null;
   const keys = (card.variants || []).map((v) => v.key);
   if (!keys.length) return null;
+  if (card.game === "mtg") {
+    const want = ident?.finish === "etched-foil" ? "etched" : ident?.finish === "foil" || ident?.finish === "holo" ? "foil" : "nonfoil";
+    return keys.includes(want) ? want : keys[0];
+  }
   const first = ident?.edition === "1st Edition";
   const finish = ident?.finish;
   const prefs = [];
@@ -34,7 +43,7 @@ export function defaultSelection(card, ident) {
 }
 
 export function subtitle(card, selection) {
-  if (card.game === "pokemon") return [card.setName, numberLabel(card), card.rarity].filter(Boolean).join(" · ");
+  if (hasVariants(card)) return [card.setName, numberLabel(card), card.rarity].filter(Boolean).join(" · ");
   const p = card.printings?.find((x) => x.key === selection);
   return [p?.setName, p?.setCode, p?.rarity].filter(Boolean).join(" · ") || card.type;
 }

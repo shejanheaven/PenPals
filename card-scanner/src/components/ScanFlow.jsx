@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api.js";
 import { preparePhoto, fileToCanvas } from "../lib/image.js";
-import { defaultSelection, numberLabel } from "../lib/cards.js";
+import { defaultSelection, hasVariants, numberLabel } from "../lib/cards.js";
 import CardView from "./CardView.jsx";
 import { CardImage, Sheet, Spinner } from "./ui.jsx";
 
@@ -132,7 +132,11 @@ export default function ScanFlow({ canvas, gameHint, collections, settings, stat
               </div>
               <button
                 className="btn primary block"
-                onClick={() => onSearchInstead({ game: id.game === "yugioh" ? "yugioh" : "pokemon", name: id.name, number: id.collector_number || id.set_code })}
+                onClick={() => onSearchInstead({
+                    game: ["yugioh", "mtg"].includes(id.game) ? id.game : "pokemon",
+                    name: id.name,
+                    number: id.game === "mtg" ? [id.set_code, id.collector_number].filter(Boolean).join(" ") : id.collector_number || id.set_code,
+                  })}
               >
                 Search the database
               </button>
@@ -156,7 +160,7 @@ export default function ScanFlow({ canvas, gameHint, collections, settings, stat
                       <button key={c.id} className={`candidate${i === picked ? " on" : ""}`} onClick={() => setPicked(i)}>
                         <CardImage src={c.images?.small} alt={c.name} />
                         <div className="t ellipsis">{c.name}</div>
-                        <div className="s ellipsis">{c.game === "pokemon" ? `${c.setName} ${numberLabel(c)}` : c.printings?.find((p) => p.key === c.printingKey)?.setCode || c.type}</div>
+                        <div className="s ellipsis">{hasVariants(c) ? `${c.setName} ${numberLabel(c)}` : c.printings?.find((p) => p.key === c.printingKey)?.setCode || c.type}</div>
                       </button>
                     ))}
                   </div>

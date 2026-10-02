@@ -1,6 +1,7 @@
 import { json, route, queryOf, errorJson, PRICE_CACHE } from "./_lib/http.js";
 import { searchPokemon } from "./_lib/pokemon.js";
 import { searchYugioh } from "./_lib/yugioh.js";
+import { searchMtg } from "./_lib/mtg.js";
 
 // GET /api/search?game=pokemon&name=Charizard&number=4&total=102&setCode=&setName=&rarity=
 export const GET = route(async (request) => {
@@ -17,5 +18,6 @@ export const GET = route(async (request) => {
   if (!hint.name && !hint.setCode) return errorJson(400, "Enter a card name or set code");
   if (game === "pokemon") return json(await searchPokemon(hint), { cache: PRICE_CACHE });
   if (game === "yugioh") return json(await searchYugioh(hint), { cache: PRICE_CACHE });
-  return errorJson(400, "game must be pokemon or yugioh");
+  if (game === "mtg") return json(await searchMtg(hint), { cache: PRICE_CACHE });
+  return errorJson(400, "game must be pokemon, yugioh or mtg");
 });

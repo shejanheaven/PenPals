@@ -19,17 +19,17 @@ const obj = (properties) => ({
 });
 
 export const IDENTIFY_SCHEMA = obj({
-  is_card: { type: "boolean", description: "False if no Pokémon or Yu-Gi-Oh! card is clearly visible." },
-  game: { type: "string", enum: ["pokemon", "yugioh", "other", "unknown"] },
-  name: str("Official English card name, exactly as the card database would list it (e.g. 'Charizard ex', 'Dark Magician'). Translate non-English cards to their official English name."),
+  is_card: { type: "boolean", description: "False if no Pokémon, Yu-Gi-Oh! or Magic: The Gathering card is clearly visible." },
+  game: { type: "string", enum: ["pokemon", "yugioh", "mtg", "other", "unknown"] },
+  name: str("Official English card name, exactly as the card database would list it (e.g. 'Charizard ex', 'Dark Magician', 'Sheoldred, the Apocalypse'). For double-faced Magic cards use the front face name. Translate non-English cards to their official English name."),
   printed_name: str("Name exactly as printed on the card, in its own language."),
   language: str("Card language, e.g. 'English', 'Japanese'."),
-  set_code: str("Yu-Gi-Oh!: the full set code printed under the artwork, e.g. 'LOB-EN001'. Pokémon: the set abbreviation printed at the bottom (e.g. 'PAL', 'OBF') if present. Empty string if not readable — never guess."),
-  collector_number: str("Pokémon: the collector number before the slash, e.g. '4' from '4/102', or the full promo/subset number like 'SWSH050', 'TG05', 'SV107'. Empty for Yu-Gi-Oh! or if unreadable."),
+  set_code: str("Yu-Gi-Oh!: the full set code printed under the artwork, e.g. 'LOB-EN001'. Pokémon: the set abbreviation printed at the bottom (e.g. 'PAL', 'OBF') if present. Magic: the set code printed at the bottom left (e.g. 'DMU', 'MKM'). Empty string if not readable — never guess."),
+  collector_number: str("Pokémon: the collector number before the slash, e.g. '4' from '4/102', or the full promo/subset number like 'SWSH050', 'TG05', 'SV107'. Magic: the collector number at the bottom left, e.g. '107' or '107a', without leading zeros or a set total. Empty for Yu-Gi-Oh! or if unreadable."),
   set_total: str("Pokémon: the number after the slash, e.g. '102' from '4/102'. Empty if none or unreadable."),
   set_name: str("Best identification of the set/expansion name, e.g. 'Base Set', 'Paldea Evolved', 'Legend of Blue Eyes White Dragon'."),
-  rarity: str("Rarity using database wording, e.g. 'Common', 'Rare Holo', 'Double Rare', 'Illustration Rare', 'Special Illustration Rare', 'Ultra Rare', 'Super Rare', 'Secret Rare', 'Ultimate Rare', 'Starlight Rare', 'Quarter Century Secret Rare'."),
-  finish: { type: "string", enum: ["non-holo", "holo", "reverse-holo", "full-art-textured", "unknown"] },
+  rarity: str("Rarity using database wording, e.g. 'Common', 'Rare Holo', 'Double Rare', 'Illustration Rare', 'Special Illustration Rare', 'Ultra Rare', 'Super Rare', 'Secret Rare', 'Ultimate Rare', 'Starlight Rare', 'Quarter Century Secret Rare'. Magic: 'Common', 'Uncommon', 'Rare' or 'Mythic'."),
+  finish: { type: "string", enum: ["non-holo", "holo", "reverse-holo", "full-art-textured", "foil", "etched-foil", "unknown"] },
   edition: { type: "string", enum: ["1st Edition", "Unlimited", "Limited Edition", "Shadowless", "unknown"] },
   identification_confidence: { type: "string", enum: ["low", "medium", "high"] },
   graded: obj({
@@ -53,11 +53,12 @@ export const IDENTIFY_SCHEMA = obj({
   photo_feedback: str("If glare, blur, sleeves, or framing prevented a reliable read or grade, say exactly how to retake the photo. Empty string if the photo was fine."),
 });
 
-const SYSTEM = `You are an expert Pokémon TCG and Yu-Gi-Oh! TCG card identifier and condition grader working inside a card-scanning app. Sellers rely on you to identify the exact printing and judge condition, because both drive resale price.
+const SYSTEM = `You are an expert Pokémon TCG, Yu-Gi-Oh! TCG and Magic: The Gathering card identifier and condition grader working inside a card-scanning app. Sellers rely on you to identify the exact printing and judge condition, because both drive resale price.
 
 Identification — read the printed text; do not guess from artwork alone:
 - Pokémon: the collector number is at the bottom ("4/102", "025/198", promos like "SWSH050" or "SVP 085", subsets like "TG05/TG30" or "GG70/GG70"). Newer cards print a set abbreviation and regulation mark at the bottom left. WOTC-era cards may have a black "Edition 1" stamp left of the art box (1st Edition); Base Set cards without the art-box drop shadow are Shadowless. Finish: holo = only the artwork is foil; reverse-holo = everything except the artwork is foil.
 - Yu-Gi-Oh!: the set code is printed just below the artwork on the right (e.g. "LOB-EN001", "RA01-EN016"); "1st Edition" or "LIMITED EDITION" is printed below the artwork on the left. Rarity cues: Common has a plain name; Rare has a silver-foil name; Super Rare has foil artwork and a plain name; Ultra Rare has foil artwork and a gold-foil name; Secret Rare has diagonal-sparkle foil artwork; Ultimate Rare is embossed; Starlight and Quarter Century Secret Rares have foil across the whole card face.
+- Magic: The Gathering: cards from 2023 on print the collector number, rarity letter (C/U/R/M), set code and language at the bottom left, e.g. "0107 R" above "MKM • EN"; older cards print "107/286" or nothing, in which case name the set from the set symbol and frame. Finish: "foil" for a rainbow-sheen traditional foil, "etched-foil" for a metallic etched frame, otherwise "non-holo". Rarity follows the set-symbol colour: black = Common, silver = Uncommon, gold = Rare, orange-red = Mythic. Leave edition "unknown" for Magic.
 - If text is unreadable, leave that field empty instead of inventing it, and lower identification_confidence.
 
 Condition — use TCGplayer raw-card standards:
@@ -79,7 +80,7 @@ function parseDataUrl(dataUrl, label) {
 
 let client = null;
 
-/** front/back: data URLs. gameHint: "auto" | "pokemon" | "yugioh". */
+/** front/back: data URLs. gameHint: "auto" | "pokemon" | "yugioh" | "mtg". */
 export async function identifyCard({ front, back, gameHint = "auto" }) {
   if (!aiConfigured()) throw new HttpError(501, "ANTHROPIC_API_KEY is not set on the server");
   client ??= new Anthropic();
@@ -88,7 +89,8 @@ export async function identifyCard({ front, back, gameHint = "auto" }) {
   if (back) content.push({ type: "text", text: "Photo 2 — BACK of the same card:" }, parseDataUrl(back, "Back"));
   const hint =
     gameHint === "pokemon" ? "The user says this is a Pokémon card." :
-    gameHint === "yugioh" ? "The user says this is a Yu-Gi-Oh! card." : "";
+    gameHint === "yugioh" ? "The user says this is a Yu-Gi-Oh! card." :
+    gameHint === "mtg" ? "The user says this is a Magic: The Gathering card." : "";
   content.push({
     type: "text",
     text: `Identify this card's exact printing and grade its condition. ${hint} ${back ? "" : "No back photo was provided."}`.trim(),

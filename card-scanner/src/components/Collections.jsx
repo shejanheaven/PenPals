@@ -2,17 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { listItems, saveItem, saveCollection, deleteCollection } from "../lib/db.js";
 import { api } from "../lib/api.js";
 import { estimateValue } from "../lib/pricing.js";
-import { GAME_LABEL, subtitle, selectionLabel } from "../lib/cards.js";
-import { money } from "../lib/format.js";
+import { GAME_LABEL, GAMES, hasVariants, numberLabel, subtitle, selectionLabel } from "../lib/cards.js";
+import { money, pct } from "../lib/format.js";
+import { historyStats, itemValue, sparkPath } from "../lib/history.js";
 import { CardImage, Icon, Segmented, Sheet, Spinner } from "./ui.jsx";
 
 const EMOJIS = ["📒", "🔥", "⚡", "🐉", "💎", "🏆", "💰", "🛒", "🎴", "⭐", "🧪", "📦"];
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-export const itemValue = (it) => (it.estimate?.value || 0) * (it.qty || 1);
+export { itemValue };
 
-export function Collections({ collections, items, onOpenCollection, onCreated }) {
+export function Collections({ collections, items, snapshots, onOpenCollection, onCreated }) {
   const [creating, setCreating] = useState(false);
   const totals = useMemo(() => {
     const t = {};
@@ -35,6 +36,7 @@ export function Collections({ collections, items, onOpenCollection, onCreated })
         <div className="small muted">
           {plural(cardCount, "card")} · realistic sale value
         </div>
+        <ValueTrend snapshots={snapshots} />
       </div>
       <div className="grid-2">
         {collections.map((c) => (
@@ -67,6 +69,55 @@ export function Collections({ collections, items, onOpenCollection, onCreated })
             onCreated(c);
           }}
         />
+      )}
+    </div>
+  );
+}
+
+const RANGES = [
+  { value: 7, label: "7D" },
+  { value: 30, label: "30D" },
+  { value: 90, label: "90D" },
+  { value: 0, label: "All" },
+];
+
+function ValueTrend({ snapshots }) {
+  const [days, setDays] = useState(30);
+  const stats = useMemo(() => historyStats(snapshots, days), [snapshots, days]);
+  if (!snapshots?.length) return null;
+  if (snapshots.length < 2) return <div className="tiny dim mt">Your value history starts today. Check back tomorrow to see the trend.</div>;
+  const up = (stats?.change ?? 0) >= 0;
+  return (
+    <div className="trend mt">
+      <div className="between">
+        {stats ? (
+          <span className={`small ${up ? "up" : "down"}`}>
+            {up ? "▲" : "▼"} {money(Math.abs(stats.change))}
+            {stats.pct !== null ? ` (${pct(Math.abs(stats.pct))})` : ""}
+            <span className="dim"> since {new Date(`${stats.since}T12:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+          </span>
+        ) : (
+          <span className="small dim">Not enough history in this range</span>
+        )}
+        <div className="range">
+          {RANGES.map((r) => (
+            <button key={r.value} className={days === r.value ? "on" : ""} onClick={() => setDays(r.value)}>
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {stats && (
+        <>
+          <svg className={`spark ${up ? "up" : "down"}`} viewBox="0 0 100 32" preserveAspectRatio="none" role="img" aria-label="Collection value over time">
+            <polyline points={sparkPath(stats.points)} fill="none" strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+          </svg>
+          {stats.cardsAdded !== 0 && (
+            <div className="tiny dim">
+              Includes {plural(Math.abs(stats.cardsAdded), "card")} {stats.cardsAdded > 0 ? "added" : "removed"} in this period, not just price moves.
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -160,7 +211,7 @@ export function CollectionDetail({ collection, settings, onBack, onOpenItem, onC
         c.name,
         GAME_LABEL[c.game],
         c.setName || p?.setName || "",
-        c.game === "pokemon" ? `${c.number}${c.setTotal ? "/" + c.setTotal : ""}` : p?.setCode || "",
+        hasVariants(c) ? numberLabel(c) : p?.setCode || "",
         selectionLabel(c, it.selection),
         it.graded ? `${it.graded.company} ${it.graded.grade}` : it.condition,
         it.qty || 1,
@@ -209,11 +260,7 @@ export function CollectionDetail({ collection, settings, onBack, onOpenItem, onC
         </div>
       </div>
       <Segmented
-        options={[
-          { value: "all", label: "All" },
-          { value: "pokemon", label: "Pokémon" },
-          { value: "yugioh", label: "Yu-Gi-Oh!" },
-        ]}
+        options={[{ value: "all", label: "All" }, ...GAMES]}
         value={game}
         onChange={setGame}
       />
@@ -239,7 +286,7 @@ export function CollectionDetail({ collection, settings, onBack, onOpenItem, onC
                 <div className="tiny dim ellipsis">{subtitle(it.card, it.selection)}</div>
                 <div className="row" style={{ gap: 6, marginTop: 4 }}>
                   <span className="pill cond">{it.graded ? `${it.graded.company} ${it.graded.grade}` : it.condition}</span>
-                  {selectionLabel(it.card, it.selection) && it.card.game === "pokemon" && <span className="pill">{selectionLabel(it.card, it.selection)}</span>}
+                  {selectionLabel(it.card, it.selection) && hasVariants(it.card) && <span className="pill">{selectionLabel(it.card, it.selection)}</span>}
                 </div>
               </div>
               <div className="v">{money(itemValue(it))}</div>

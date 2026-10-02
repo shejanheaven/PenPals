@@ -18,6 +18,7 @@ export function listingKeywords(card, selection) {
     if (selection?.startsWith("1stEdition")) parts.push("1st edition");
     return parts.filter(Boolean).join(" ");
   }
+  if (card.game === "mtg") return [card.name, card.setName, selection === "foil" ? "foil" : selection === "etched" ? "etched foil" : ""].filter(Boolean).join(" ");
   const p = card.printings?.find((x) => x.key === selection);
   return [card.name, p?.setCode, p?.rarity].filter(Boolean).join(" ");
 }
@@ -25,12 +26,17 @@ export function listingKeywords(card, selection) {
 /** Tokens a listing title must contain to count as the same printing. */
 export function mustIncludeTokens(card, selection) {
   if (card.game === "pokemon") return pokemonNumberTokens(card);
+  if (card.game === "mtg") return card.setName ? [card.setName] : [];
   const p = card.printings?.find((x) => x.key === selection);
   return p?.setCode ? [p.setCode] : [];
 }
 
 /** Listing-title words that mean a *different* printing than the one selected. */
 export function excludeTokens(card, selection, edition) {
+  if (card.game === "mtg") {
+    if (selection === "nonfoil") return [" foil", "etched"]; // leading space keeps "Non-Foil" titles
+    return selection === "foil" ? ["etched", "non-foil", "nonfoil"] : [];
+  }
   if (card.game !== "pokemon") return edition === "Unlimited" ? ["1st edition", "1st ed"] : [];
   const out = [];
   if (!selection?.startsWith("1stEdition")) out.push("1st edition", "1st ed");
@@ -61,6 +67,7 @@ export function ebayActiveUrl(card, selection, graded) {
 
 export function priceChartingQuery(card, selection) {
   if (card.game === "pokemon") return ["pokemon", card.setName, card.name, card.number].filter(Boolean).join(" ");
+  if (card.game === "mtg") return ["magic", card.setName, card.name].filter(Boolean).join(" ");
   const p = card.printings?.find((x) => x.key === selection);
   return ["yugioh", card.name, p?.setCode].filter(Boolean).join(" ");
 }
@@ -71,6 +78,6 @@ export function priceChartingUrl(card, selection) {
 
 export function tcgplayerUrl(card) {
   if (card.links?.tcgplayer) return card.links.tcgplayer;
-  const game = card.game === "pokemon" ? "pokemon" : "yugioh";
+  const game = { pokemon: "pokemon", yugioh: "yugioh", mtg: "magic" }[card.game] || "pokemon";
   return `https://www.tcgplayer.com/search/${game}/product?q=${encodeURIComponent(card.name)}&view=grid`;
 }

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./lib/api.js";
 import { loadSettings, saveSettings } from "./lib/settings.js";
-import { listCollections, listItems, saveCollection, saveItem, savePhoto, deleteItem, requestPersistence } from "./lib/db.js";
+import { listCollections, listItems, listSnapshots, recordSnapshot, saveCollection, saveItem, savePhoto, deleteItem, requestPersistence } from "./lib/db.js";
+import { portfolio } from "./lib/history.js";
 import { defaultSelection } from "./lib/cards.js";
 import Scanner from "./components/Scanner.jsx";
 import ScanFlow from "./components/ScanFlow.jsx";
@@ -32,6 +33,7 @@ export default function App() {
   const [settings, setSettingsState] = useState(loadSettings);
   const [collections, setCollections] = useState([]);
   const [items, setItems] = useState([]);
+  const [snapshots, setSnapshots] = useState([]);
   const [openCollection, setOpenCollection] = useState(null);
   const [capture, setCapture] = useState(null);
   const [cardSheet, setCardSheet] = useState(null);
@@ -50,6 +52,12 @@ export default function App() {
     const [c, i] = await Promise.all([listCollections(), listItems()]);
     setCollections(c);
     setItems(i);
+    try {
+      if (i.length) await recordSnapshot(portfolio(i));
+      setSnapshots(await listSnapshots());
+    } catch {
+      /* history is a nice-to-have; never block the app on it */
+    }
     return c;
   }, []);
 
@@ -150,7 +158,7 @@ export default function App() {
               }}
             />
           ) : (
-            <Collections collections={collections} items={items} onOpenCollection={setOpenCollection} onCreated={() => reload()} />
+            <Collections collections={collections} items={items} snapshots={snapshots} onOpenCollection={setOpenCollection} onCreated={() => reload()} />
           ))}
         {tab === "search" && <Search initial={searchInitial} onOpenCard={(card) => setCardSheet({ card })} />}
         {tab === "settings" && <Settings status={status} settings={settings} setSettings={setSettings} onDataChanged={reload} toast={toast} />}

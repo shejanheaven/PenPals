@@ -1,8 +1,8 @@
-// On-device storage (IndexedDB): collections, saved cards, and your card photos.
+// On-device storage (IndexedDB): collections, saved cards, your card photos, and daily value snapshots.
 // Nothing leaves the phone except what you export.
 
 const DB_NAME = "binder";
-const VERSION = 1;
+const VERSION = 2;
 let dbPromise = null;
 
 function open() {
@@ -16,6 +16,7 @@ function open() {
         items.createIndex("collectionId", "collectionId");
       }
       if (!db.objectStoreNames.contains("photos")) db.createObjectStore("photos", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("snapshots")) db.createObjectStore("snapshots", { keyPath: "day" });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -97,6 +98,20 @@ export async function deletePhoto(id) {
   await done((await store("photos", "readwrite")).delete(id));
 }
 
+// ── value history: one snapshot per local day, the latest reading wins ──
+export const localDay = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+export async function recordSnapshot({ total, count }) {
+  const rec = { day: localDay(), total: Math.round(total * 100) / 100, count, at: Date.now() };
+  await done((await store("snapshots", "readwrite")).put(rec));
+  return rec;
+}
+
+export async function listSnapshots() {
+  return done((await store("snapshots")).getAll()); // keyPath order = oldest day first
+}
+
 // ── backup ──
 const blobToDataUrl = (blob) =>
   new Promise((resolve, reject) => {
@@ -118,7 +133,8 @@ export async function exportAll({ includePhotos = true } = {}) {
       }
     }
   }
-  return { app: "binder", version: 1, exportedAt: new Date().toISOString(), collections, items, photos };
+  const snapshots = await listSnapshots();
+  return { app: "binder", version: 2, exportedAt: new Date().toISOString(), collections, items, photos, snapshots };
 }
 
 export async function importAll(data) {
@@ -130,5 +146,6 @@ export async function importAll(data) {
   }
   for (const c of data.collections || []) await done((await store("collections", "readwrite")).put(c));
   for (const it of data.items || []) await done((await store("items", "readwrite")).put(it));
+  for (const s of data.snapshots || []) await done((await store("snapshots", "readwrite")).put(s));
   return { collections: data.collections?.length || 0, items: data.items?.length || 0 };
 }

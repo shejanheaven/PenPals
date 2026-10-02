@@ -28,7 +28,7 @@ globalThis.fetch = async function mockFetch(input, init = {}) {
   if (host === "api.anthropic.com") {
     const body = JSON.parse(init.body || "{}");
     const text = JSON.stringify(body.messages?.[0]?.content || []);
-    const result = /Yu-Gi-Oh/i.test(text) ? fx.identifyBlueEyes : fx.identifyCharizard;
+    const result = /Yu-Gi-Oh/i.test(text) ? fx.identifyBlueEyes : /Magic: The Gathering/i.test(text) ? fx.identifyBolt : fx.identifyCharizard;
     await sleep(900);
     return jsonRes({
       id: "msg_mock",
@@ -75,6 +75,19 @@ globalThis.fetch = async function mockFetch(input, init = {}) {
       return hit ? jsonRes({ data: [fx.ygoBlueEyes] }) : jsonRes({ error: "No card matching your query was found in the database." }, 400);
     }
   }
+
+  if (host === "api.scryfall.com") {
+    const notFound = () => jsonRes({ object: "error", code: "not_found", status: 404, details: "No card found" }, 404);
+    const prints = fx.scryfallBoltPrints;
+    if (url.pathname === "/cards/search") return /lightning bolt/i.test(p.get("q") || "") ? jsonRes({ object: "list", has_more: false, data: prints }) : notFound();
+    if (url.pathname === "/cards/named") return /bolt/i.test(p.get("fuzzy") || "") ? jsonRes(prints[0]) : notFound();
+    const exact = url.pathname.match(/^\/cards\/([^/]+)\/([^/]+)$/);
+    const byId = url.pathname.match(/^\/cards\/([^/]+)$/);
+    const hit = exact ? prints.find((c) => c.set === exact[1] && c.collector_number === exact[2]) : byId && prints.find((c) => c.id === byId[1]);
+    return hit ? jsonRes(hit) : notFound();
+  }
+
+  if (host === "cards.scryfall.io") return placeholderImage(url.pathname.split("/").pop());
 
   if (host === "api.ebay.com") {
     if (url.pathname.includes("/oauth2/token")) return jsonRes({ access_token: "mock", expires_in: 7200, token_type: "Application Access Token" });

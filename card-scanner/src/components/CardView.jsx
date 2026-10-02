@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api.js";
 import { CONDITIONS, GRADERS, estimateValue, platformPayouts } from "../lib/pricing.js";
-import { GAME_LABEL, selectionOptions, subtitle, cardSnapshot } from "../lib/cards.js";
+import { GAME_LABEL, hasVariants, selectionOptions, subtitle, cardSnapshot } from "../lib/cards.js";
 import {
   ebaySoldUrl,
   ebayActiveUrl,
@@ -155,8 +155,8 @@ export default function CardView({
       {/* ── exact version ── */}
       {options.length > 0 && (
         <>
-          <div className="section-title">{card.game === "pokemon" ? "Version" : "Printing (set code · rarity)"}</div>
-          {card.game === "pokemon" ? (
+          <div className="section-title">{hasVariants(card) ? "Version" : "Printing (set code · rarity)"}</div>
+          {hasVariants(card) ? (
             <div className="chips">
               {options.map((o) => (
                 <button key={o.key} className={`chip${selection === o.key ? " on" : ""}`} onClick={() => setSelection(o.key)}>

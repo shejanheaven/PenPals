@@ -68,6 +68,14 @@ export function nearMintReference(card, selection, settings = DEFAULT_SETTINGS) 
     if (eur) return { value: r2(eur * settings.eurToUsd), source: `Cardmarket trend €${eur.toFixed(2)} (EU)`, basis: "European sales, converted", confidence: "low" };
     return null;
   }
+  if (card.game === "mtg") {
+    const v = card.variants?.find((x) => x.key === selection) || card.variants?.[0];
+    if (v?.market) return { value: v.market, source: `TCGplayer market price (${v.label})`, basis: "recent TCGplayer sales", confidence: "high" };
+    const cm = card.cardmarket;
+    const eur = selection === "nonfoil" ? cm?.trend : cm?.foil?.trend;
+    if (eur) return { value: r2(eur * settings.eurToUsd), source: `Cardmarket trend €${eur.toFixed(2)} (EU)`, basis: "European sales, converted", confidence: "low" };
+    return null;
+  }
   if (card.game === "yugioh") {
     const p = card.printings?.find((x) => x.key === selection);
     if (p?.price) return { value: p.price, source: `TCGplayer price for ${p.setCode} (${p.rarity})`, basis: "this exact printing", confidence: "medium" };

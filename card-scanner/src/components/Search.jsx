@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api.js";
-import { numberLabel } from "../lib/cards.js";
+import { GAMES, hasVariants, numberLabel } from "../lib/cards.js";
 import { money } from "../lib/format.js";
 import { CardImage, Segmented, Spinner } from "./ui.jsx";
 
@@ -8,12 +8,18 @@ function parseExtra(game, extra) {
   const s = extra.trim();
   if (!s) return {};
   if (game === "yugioh") return { setCode: s.toUpperCase() };
+  if (game === "mtg") {
+    // "MKM 107", "MKM-107", "MKM" or "107"
+    const m = s.match(/^([A-Za-z0-9]{2,6})?[\s#/-]*(\d+[a-z★]?)?$/i);
+    if (m && (m[1] || m[2])) return /^\d+$/.test(m[1] || "") && !m[2] ? { number: m[1] } : { setCode: (m[1] || "").toUpperCase(), number: m[2] || "" };
+    return { setName: s };
+  }
   const m = s.match(/^#?\s*([A-Za-z]*\d+[A-Za-z]*)\s*(?:\/\s*([A-Za-z]*\d+))?$/);
   return m ? { number: m[1], total: m[2] || "" } : { setName: s };
 }
 
 function priceHint(c) {
-  if (c.game === "pokemon") {
+  if (hasVariants(c)) {
     const prices = (c.variants || []).map((v) => v.market ?? v.mid).filter(Boolean);
     return prices.length ? Math.max(...prices) : null;
   }
@@ -45,10 +51,7 @@ export default function Search({ initial, onOpenCard }) {
     <div className="screen">
       <h1>Search</h1>
       <Segmented
-        options={[
-          { value: "pokemon", label: "Pokémon" },
-          { value: "yugioh", label: "Yu-Gi-Oh!" },
-        ]}
+        options={GAMES}
         value={game}
         onChange={(g) => {
           setGame(g);
@@ -63,10 +66,10 @@ export default function Search({ initial, onOpenCard }) {
           run();
         }}
       >
-        <input className="input" type="search" placeholder={game === "pokemon" ? "Card name, e.g. Charizard" : "Card name, e.g. Dark Magician"} value={name} onChange={(e) => setName(e.target.value)} enterKeyHint="search" />
+        <input className="input" type="search" placeholder={`Card name, e.g. ${{ pokemon: "Charizard", yugioh: "Dark Magician", mtg: "Lightning Bolt" }[game]}`} value={name} onChange={(e) => setName(e.target.value)} enterKeyHint="search" />
         <input
           className="input"
-          placeholder={game === "pokemon" ? "Number (optional), e.g. 4/102" : "Set code (optional), e.g. LOB-EN005"}
+          placeholder={{ pokemon: "Number (optional), e.g. 4/102", yugioh: "Set code (optional), e.g. LOB-EN005", mtg: "Set + number (optional), e.g. MKM 107" }[game]}
           value={extra}
           onChange={(e) => setExtra(e.target.value)}
           autoCapitalize="characters"
@@ -90,7 +93,7 @@ export default function Search({ initial, onOpenCard }) {
                 <div className="grow">
                   <div style={{ fontWeight: 650 }}>{c.name}</div>
                   <div className="tiny dim">
-                    {c.game === "pokemon"
+                    {hasVariants(c)
                       ? [c.setName, numberLabel(c), c.rarity].filter(Boolean).join(" · ")
                       : [c.type, `${c.printings?.length || 0} printings`].join(" · ")}
                   </div>

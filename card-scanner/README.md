@@ -1,4 +1,4 @@
-# Binder: Pokémon & Yu-Gi-Oh! card scanner
+# Binder: Pokémon, Yu-Gi-Oh! & Magic card scanner
 
 Point your iPhone camera at a card. Binder works out the **exact printing** (set, number, rarity, edition), **grades its condition from the photo**, and tells you what it will **realistically sell for** and how much you'd **actually take home** on eBay, TCGplayer, Whatnot, Mercari, a local sale, or a shop buylist. Save cards into your own collections ("Binder 1", "For Sale", "Charizards"…) and track their total value.
 
@@ -57,11 +57,13 @@ eBay does not give regular developers access to *sold* listing data, which is wh
 
 ## What a scan costs
 
-Each scan is one Claude request with your photo. With the default model, expect roughly **3–10¢ per scan**. Adding a back photo makes a second request. Card lookups and prices use free databases (TCGdex, Pokémon TCG API, YGOPRODeck). Set `SCAN_MODEL=claude-sonnet-5-5` to roughly halve the cost.
+Each scan is one Claude request with your photo. With the default model, expect roughly **3–10¢ per scan**. Adding a back photo makes a second request. Card lookups and prices use free databases (TCGdex, Pokémon TCG API, YGOPRODeck, Scryfall). Set `SCAN_MODEL=claude-sonnet-5-5` to roughly halve the cost.
 
 ## Your data
 
 Collections, notes, and your card photos stay **on your phone** (IndexedDB). Use **Settings → Export backup** now and then; it saves a file you can keep in iCloud Drive. **Import backup** restores it on any device. Each collection can also be exported as CSV for spreadsheets or bulk listing.
+
+Binder also keeps one **value snapshot per day** on the phone, and the Collections screen charts your total over 7 days, 30 days, 90 days, or all time. The change includes cards you added or removed, not only price moves, and it says so when that happened. Snapshots are included in backups.
 
 ## Local development
 
@@ -81,6 +83,7 @@ To try it on your phone before deploying, run `npm run dev` and open the Network
 - **Condition grading is an estimate from photos.** It's good at spotting whitening, scratches, creases, and off-centering, but glare and sleeves hide flaws. Always check under a bright light before you list a valuable card.
 - **Yu-Gi-Oh! prices are per set code + rarity.** The free data doesn't split 1st Edition from Unlimited. Binder warns you when it detects 1st Edition; check the eBay sold link for old sets.
 - **Japanese and other non-English cards** are identified, but the price data is for English printings.
+- **Magic prices are per printing and finish** (Normal, Foil, Etched Foil) from Scryfall, which reports TCGplayer market prices once a day. Pick the right finish on the card screen; foils can be worth many times the normal copy.
 - Pokémon data comes from TCGdex, with the Pokémon TCG API as a backup (that API is scheduled to shut down in March 2027).
 
 ## Project layout
@@ -94,11 +97,11 @@ card-scanner/
 │   ├── ebay.js             live eBay listings (optional)
 │   ├── pricecharting.js    eBay sold averages incl. graded (optional)
 │   ├── img.js              cached image proxy
-│   └── _lib/               providers (TCGdex, Pokémon TCG API, YGOPRODeck, eBay, PriceCharting, Claude)
+│   └── _lib/               providers (TCGdex, Pokémon TCG API, YGOPRODeck, Scryfall, eBay, PriceCharting, Claude)
 ├── src/
 │   ├── components/         Scanner, ScanFlow, CardView, Collections, Search, Settings
 │   └── lib/                pricing engine, eBay links, IndexedDB storage, image cropping
 └── test/                   node:test suites + offline mocks of every upstream API
 ```
 
-Not affiliated with The Pokémon Company, Konami, eBay, TCGplayer, or PriceCharting.
+Not affiliated with The Pokémon Company, Konami, Wizards of the Coast, Scryfall, eBay, TCGplayer, or PriceCharting.

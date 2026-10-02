@@ -2,8 +2,9 @@ import { json, route, checkPasscode, errorJson, HttpError, withTimeout } from ".
 import { identifyCard } from "./_lib/claude.js";
 import { searchPokemon } from "./_lib/pokemon.js";
 import { searchYugioh } from "./_lib/yugioh.js";
+import { searchMtg } from "./_lib/mtg.js";
 
-// POST /api/identify  { front: dataURL, back?: dataURL, gameHint?: "auto"|"pokemon"|"yugioh" }
+// POST /api/identify  { front: dataURL, back?: dataURL, gameHint?: "auto"|"pokemon"|"yugioh"|"mtg" }
 // → { identification, candidates, provider, warnings }
 export const POST = route(async (request) => {
   const denied = checkPasscode(request);
@@ -23,7 +24,7 @@ export const POST = route(async (request) => {
   });
 
   let lookup = { results: [], provider: null, warnings: [] };
-  if (id.is_card && (id.game === "pokemon" || id.game === "yugioh")) {
+  if (id.is_card && ["pokemon", "yugioh", "mtg"].includes(id.game)) {
     // Whatever time Claude left us inside the 60 s function limit.
     const budget = Math.max(5000, 57_000 - (Date.now() - started));
     try {
@@ -36,7 +37,9 @@ export const POST = route(async (request) => {
               setCode: id.set_code,
               setName: id.set_name,
             })
-          : searchYugioh({ name: id.name, setCode: id.set_code, rarity: id.rarity }),
+          : id.game === "mtg"
+            ? searchMtg({ name: id.name, number: id.collector_number, setCode: id.set_code, setName: id.set_name })
+            : searchYugioh({ name: id.name, setCode: id.set_code, rarity: id.rarity }),
         budget,
         "Card database lookup",
       );

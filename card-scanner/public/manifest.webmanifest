@@ -1,7 +1,7 @@
 {
   "name": "Binder — Card Scanner",
   "short_name": "Binder",
-  "description": "Scan Pokémon and Yu-Gi-Oh! cards, build collections, and see what they really sell for.",
+  "description": "Scan Pokémon, Yu-Gi-Oh! and Magic cards, build collections, and see what they really sell for.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b0a14",

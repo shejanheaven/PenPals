@@ -192,3 +192,42 @@ export const identifyBlueEyes = {
   edition: "1st Edition",
   condition: { ...identifyCharizard.condition, grade: "MP", summary: "Moderately played: whitening on all corners." },
 };
+
+// ── Scryfall (Magic: The Gathering) ──
+const scryCard = (o) => ({
+  object: "card",
+  lang: "en",
+  name: "Lightning Bolt",
+  type_line: "Instant",
+  rarity: "uncommon",
+  finishes: ["nonfoil", "foil"],
+  ...o,
+  image_uris: {
+    small: `https://cards.scryfall.io/small/front/${o.id}.jpg`,
+    normal: `https://cards.scryfall.io/normal/front/${o.id}.jpg`,
+    large: `https://cards.scryfall.io/large/front/${o.id}.jpg`,
+  },
+  scryfall_uri: `https://scryfall.com/card/${o.set}/${o.collector_number}/lightning-bolt`,
+  purchase_uris: { tcgplayer: `https://www.tcgplayer.com/product/mock-${o.id}`, cardmarket: "https://www.cardmarket.com/mock" },
+});
+
+export const scryfallBoltPrints = [
+  scryCard({ id: "bolt-2x2", set: "2x2", set_name: "Double Masters 2022", collector_number: "117", released_at: "2022-07-08", prices: { usd: "1.62", usd_foil: "4.10", usd_etched: null, eur: "1.20", eur_foil: "3.50" } }),
+  scryCard({ id: "bolt-m10", set: "m10", set_name: "Magic 2010", collector_number: "146", released_at: "2009-07-17", rarity: "common", prices: { usd: "3.05", usd_foil: "38.50", usd_etched: null, eur: "2.40", eur_foil: "30.00" } }),
+  scryCard({ id: "bolt-sta", set: "sta", set_name: "Strixhaven Mystical Archive", collector_number: "42", released_at: "2021-04-23", rarity: "rare", finishes: ["nonfoil", "foil", "etched"], prices: { usd: "2.80", usd_foil: "6.90", usd_etched: "9.75", eur: null, eur_foil: null } }),
+];
+
+export const identifyBolt = {
+  ...identifyCharizard,
+  game: "mtg",
+  name: "Lightning Bolt",
+  printed_name: "Lightning Bolt",
+  set_code: "M10",
+  collector_number: "146",
+  set_total: "",
+  set_name: "Magic 2010",
+  rarity: "Common",
+  finish: "foil",
+  edition: "unknown",
+  condition: { ...identifyCharizard.condition, grade: "NM", summary: "Near mint: clean edges and corners." },
+};

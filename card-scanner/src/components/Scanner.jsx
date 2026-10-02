@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { cropVideoToGuide, fileToCanvas, guideRect } from "../lib/image.js";
+import { GAMES } from "../lib/cards.js";
 import { Icon, Segmented } from "./ui.jsx";
 
-const GAME_OPTIONS = [
-  { value: "auto", label: "Auto" },
-  { value: "pokemon", label: "Pokémon" },
-  { value: "yugioh", label: "Yu-Gi-Oh!" },
-];
+const GAME_OPTIONS = [{ value: "auto", label: "Auto" }, ...GAMES];
 
 export default function Scanner({ active, aiReady, gameHint, setGameHint, onCapture, onSearchInstead }) {
   const wrapRef = useRef(null);
