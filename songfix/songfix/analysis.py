@@ -44,9 +44,23 @@ def estimate_tuning(x, sr):
     """How far the song's reference pitch sits from A=440, in cents (-50..+50).
 
     Producers often pitch a beat up or down; the vocal is sung to the beat, so
-    notes must be judged against the beat's tuning, not against A=440."""
+    notes must be judged against the beat's tuning, not against A=440.
+
+    One section must not decide for the whole song (wat_2_do: an intro sample read +17 cents while the
+    rest of the beat and the vocal sat at about 0), so the melodic part of the beat (drums removed,
+    808 slides below 150 Hz removed) is measured in 20 s sections and the value the sections agree on
+    most (the circular medoid - +49 and -49 cents are neighbours) is used."""
+    from scipy import signal
     y = librosa.resample(librosa.to_mono(x.T), orig_sr=sr, target_sr=22050)
-    return float(librosa.estimate_tuning(y=y, sr=22050) * 100)
+    y = librosa.effects.harmonic(y, margin=2)
+    y = signal.sosfiltfilt(signal.butter(4, 150, "hp", fs=22050, output="sos"), y)
+    n = 20 * 22050
+    vals = [librosa.estimate_tuning(y=y[i:i + n], sr=22050) * 100
+            for i in range(0, max(len(y) - n // 2, 1), n) if np.sqrt(np.mean(y[i:i + n] ** 2)) > 1e-4]
+    if not vals:
+        return 0.0
+    dist = lambda a, b: abs((a - b + 50) % 100 - 50)
+    return float(min(vals, key=lambda v: sum(dist(v, w) for w in vals)))
 
 
 def detect_key(instrumental, sr, vocal_midi=None, tuning_cents=0.0):
