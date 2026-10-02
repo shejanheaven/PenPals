@@ -107,6 +107,17 @@ SMOOTH_S = 0.2      # longer than one vibrato cycle (4.5-7 Hz), so vibrato survi
 DRIFT_HOLD_S = 0.08  # a drift must stay off for this long to count
 
 
+def despike(seg, size=9, max_jump=0.4):
+    """Replace single-frame pitch-tracker spikes (consonants, breaths) with the running median.
+
+    Without this the drift correction would smear a 100-cent glitch across 0.2 s
+    and pull the in-tune frames around it off pitch."""
+    if len(seg) < 3:
+        return seg
+    med = median_filter(seg, size=min(size, len(seg) - (len(seg) + 1) % 2), mode="nearest")
+    return np.where(np.abs(seg - med) < max_jump, seg, med)
+
+
 def _ramp(n, hop_t, attack=0.12, release=0.04):
     """0..1 weight across a note: the scoop into it and the fall-off at its end stay as sung."""
     w = np.ones(n)
@@ -151,7 +162,7 @@ def plan_corrections(notes, tonic, scale, min_cents=10, strength=1.0, midi=None,
         else:
             drift = np.zeros(n)
             if midi is not None:
-                seg = midi[nt["start"]:nt["end"]]
+                seg = despike(midi[nt["start"]:nt["end"]])
                 dev = 100 * (uniform_filter1d(seg, size=min(n, max(3, int(SMOOTH_S / hop_t) | 1)), mode="nearest")
                              - target)
                 w = _ramp(n, hop_t)
@@ -228,9 +239,29 @@ def correct_vocals(vocals, sr, key, min_cents=10, strength=1.0, track=None, log=
         log("  every sung note is already in tune - vocal left untouched")
         return vocals.copy(), plan, track
 
-    # Render each corrected note (plus a little room either side so the
-    # pitch can glide in and settle back) with PSOLA; everything else stays
-    # sample-for-sample identical to the original.
+    tuned = _render(vocals, plan, times, midi, voiced, curve, sr)
+
+    # Second pass: re-measure the notes just fixed and touch up any that PSOLA
+    # left a few cents short. Only notes the first pass corrected are eligible.
+    t2, m2, v2 = track_pitch(tuned.mean(axis=1), sr)
+    first = [(p["t0"], p["t1"]) for p in plan if p["status"] == "corrected"]
+    plan2 = [p for p in plan_corrections(find_notes(t2, m2, v2), tonic, scale, min_cents=min(min_cents, 8),
+                                         strength=strength, midi=m2)
+             if p["status"] == "corrected" and any(p["t0"] < b and p["t1"] > a for a, b in first)]
+    if plan2:
+        curve2 = shift_curve(plan2, len(t2), hop_t)
+        tuned = _render(tuned, plan2, t2, m2, v2, curve2, sr)
+        track["curve"] = curve + curve2[:len(curve)]
+    log(f"  corrected {n_fixed} of {len(plan)} sung notes" + (f" ({len(plan2)} touched up in a second pass)"
+                                                               if plan2 else ""))
+    return tuned, plan, track
+
+
+def _render(vocals, plan, times, midi, voiced, curve, sr):
+    """PSOLA-render each corrected note (plus a little room either side so the
+    pitch can glide in and settle back); everything else stays sample-for-sample
+    identical to the input."""
+    mono = vocals.mean(axis=1)
     t_samples = np.arange(len(mono)) / sr
     ratio = 2.0 ** (np.interp(t_samples, times, curve) / 12)
     f0_frames = np.where(voiced, librosa.midi_to_hz(np.nan_to_num(midi, nan=0.0)), 0.0)
@@ -249,5 +280,4 @@ def correct_vocals(vocals, sr, key, min_cents=10, strength=1.0, track=None, log=
     for a, b in regions:
         a, b, seg = shift_region(vocals, f0_samples, ratio, max(0, a), min(len(mono) - 1, b), sr)
         tuned[a:b] = seg
-    log(f"  corrected {n_fixed} of {len(plan)} sung notes")
-    return tuned, plan, track
+    return tuned

@@ -43,13 +43,21 @@ def gallery(root, plan):
         rep = folder / "report.json"
         if not rep.exists():
             state = "failed - see batch.log" if (folder / "FAILED").exists() else "waiting"
-            rows.append(f'<tr><td>{html.escape(name)}</td><td colspan="4" class="muted">{state}</td></tr>')
+            rows.append(f'<tr><td>{html.escape(name)}</td><td colspan="5" class="muted">{state}</td></tr>')
             continue
         r = json.loads(rep.read_text())
         fixed = sum(1 for n in r.get("notes", []) if n["status"] == "corrected")
         page = quote(f"songs/{name}/index.html")
+        qc_path = folder / "qc.json"
+        if qc_path.exists():
+            q = json.loads(qc_path.read_text())
+            qc = ('<span class="ok">clean</span>' if q["pass"] else
+                  f'<span class="warn" title="{html.escape("; ".join(q["problems"]))}">check: '
+                  f'{html.escape(q["problems"][0])}</span>')
+        else:
+            qc = '<span class="muted">checking</span>'
         rows.append(
-            f'<tr><td><a href="{page}">{html.escape(name)}</a></td>'
+            f'<tr><td><a href="{page}">{html.escape(name)}</a></td><td>{qc}</td>'
             f'<td class="num">{fixed} of {len(r.get("notes", []))}</td>'
             f'<td class="num">{r["before"]["lufs"]:.1f} → {r["after"]["lufs"]:.1f}</td>'
             f'<td class="num">{r["before"]["true_peak_dbtp"]:+.1f} → {r["after"]["true_peak_dbtp"]:+.1f}</td>'
@@ -72,14 +80,27 @@ th, td {{ text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--li
 th {{ font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 500; }}
 td.num {{ font-variant-numeric: tabular-nums; font-family: ui-monospace, Menlo, monospace; font-size: 14px; }}
 a {{ color: var(--accent); }}
+.ok {{ color: #16875a; font-weight: 600; }}
+.warn {{ color: #b4541a; font-weight: 600; }}
+@media (prefers-color-scheme: dark) {{ .ok {{ color: #45c98d; }} .warn {{ color: #f0a060; }} }}
 </style></head><body><main>
 <h1>songfix masters</h1>
 <p class="muted">{done} of {len(plan)} songs done. Click a song for its before/after page. Every finished WAV and MP3
-is also in the <b>Masters</b> folder next to this page.</p>
+is also in the <b>Masters</b> folder next to this page. "Quality check" re-measures each master: exact length,
+no clipping, loudness on target, no added clicks, tone within limits, safe in mono, and every fixed note re-measured in tune.</p>
 <div class="wrap"><table>
-<tr><th>Song</th><th>Notes fixed</th><th>Loudness (LUFS)</th><th>True peak (dBTP)</th><th>Download</th></tr>
+<tr><th>Song</th><th>Quality check</th><th>Notes fixed</th><th>Loudness (LUFS)</th><th>True peak (dBTP)</th><th>Download</th></tr>
 {chr(10).join(rows)}
 </table></div></main></body></html>""", encoding="utf-8")
+
+
+def quality_check(out, src, log):
+    from songfix.qc import check
+    try:
+        q = check(out, src)
+        log.write(f"    quality check: {'clean' if q['pass'] else '; '.join(q['problems'])}\n")
+    except Exception:
+        log.write("    quality check crashed:\n" + traceback.format_exc() + "\n")
 
 
 def run(plan_path, root):
@@ -97,9 +118,12 @@ def run(plan_path, root):
     for i, e in enumerate(plan, 1):
         name = title(e["song"])
         out = root / "songs" / name
-        if (out / "index.html").exists():
-            continue
         src = Path(e["source"])
+        if (out / "index.html").exists():
+            if not (out / "qc.json").exists():
+                quality_check(out, src, log)
+                gallery(root, plan)
+            continue
         log.write(f"[{time.strftime('%H:%M:%S')}] {i}/{len(plan)} {name} <- {src.name}\n")
         print(f"\n=== {i}/{len(plan)} {name} ===", flush=True)
         try:
@@ -107,6 +131,7 @@ def run(plan_path, root):
             (out / "FAILED").unlink(missing_ok=True)
             for ext in ("wav", "mp3"):
                 link_or_copy(out / f"{src.stem} (songfix).{ext}", root / "Masters" / f"{name}.{ext}")
+            quality_check(out, src, log)
         except Exception:
             out.mkdir(parents=True, exist_ok=True)
             (out / "FAILED").write_text(traceback.format_exc())
