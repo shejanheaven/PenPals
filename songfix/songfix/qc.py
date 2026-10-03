@@ -106,6 +106,15 @@ def check(folder, original):
     if checks["max_tone_change_db"] > 4.5:
         f = c[band][np.argmax(np.abs(diff[band]))]
         problems.append(f"tone changed {checks['max_tone_change_db']} dB around {f:.0f} Hz")
+    # Duller than the original = lower quality to the ear (Burning). Compare the top end against the mids.
+    top = (c >= 6000) & (c <= 14000)
+    mids = (c >= 500) & (c <= 2000)
+    checks["top_end_change_db"] = round(float(np.mean(diff[top]) - np.mean(diff[mids])), 2)
+    if checks["top_end_change_db"] < -1.5:
+        problems.append(f"duller than the original ({checks['top_end_change_db']} dB less top end)")
+    loud_drop = report["before"]["lufs"] - checks["lufs"]
+    if loud_drop > 0.3 and report["before"]["lufs"] <= -7.0:
+        problems.append(f"quieter than the original by {loud_drop:.1f} dB")
 
     # Phone speakers and club systems play in mono.
     checks["stereo_correlation"] = round(correlation(out), 3)

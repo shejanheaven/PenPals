@@ -209,8 +209,9 @@ def limit(x, sr, ceiling_dbtp=-1.0, lookahead=0.002, release=0.08):
 
 
 def auto_loudness(before_lufs):
-    """Commercial loudness (-9 to -8 LUFS) that never turns a loud song down, but never past -8 so it keeps its punch."""
-    return float(np.clip(before_lufs, -9.0, -8.0))
+    """Commercial loudness: at least -9 LUFS, and never quieter than the original render (up to -7), because a
+    quieter master sounds duller even when nothing else changed (Burning: -7.6 -> -9.0 sounded muddier)."""
+    return float(np.clip(before_lufs, -9.0, -7.0))
 
 
 def master(x, sr, target_lufs=None, ceiling_dbtp=-1.0, reference=None, target_curve=None,

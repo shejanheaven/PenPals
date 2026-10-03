@@ -4,7 +4,7 @@ Crisp (`crisp`): cut boxy 200-500 Hz buildup, even out the level so every word i
 air above 10 kHz - each only when the vocal needs it.
 
 Comfort (`_tame`) - two things do almost all of the damage:
-- sibilance: "s", "sh", "t" and "ch" sounds (5-10 kHz) that peak louder than the vowels
+- sibilance: "s", "sh", "t" and "ch" sounds (4.5-8.5 kHz) that peak louder than the vowels
 - harshness: too much 2.5-5 kHz, the range the ear is most sensitive to, especially on loud high notes
 
 `measure` turns both into numbers; `polish` reduces them on the vocal stem only,
@@ -16,7 +16,8 @@ from scipy import signal
 
 from .master import _env_follow, db
 
-BANDS = {"body": (300, 2500), "harsh": (2500, 5000), "sib": (5000, 10000)}
+# "s" band stops at 8.5 kHz: above it, a separated vocal carries hi-hat bleed that would read as sibilance.
+BANDS = {"body": (300, 2500), "harsh": (2500, 5000), "sib": (4500, 8500)}
 
 
 def _band(x, sr, lo, hi):
@@ -100,10 +101,10 @@ def _biquad(x, sr, kind, f, gain_db, q=0.9):
     return signal.lfilter(np.array(b) / a[0], np.array(a) / a[0], x, axis=0)
 
 
-MUD_TARGET, AIR_TARGET, SPREAD_TARGET = 3.0, -10.0, 6.0  # mud target is generous: deep voices are naturally fuller
+MUD_TARGET, AIR_TARGET, SPREAD_TARGET = 3.0, -10.0, 8.0  # mud target is generous: deep voices are naturally fuller
 
 
-def crisp(vocal, sr, m=None, max_mud_cut=3.0, max_air=4.0, max_level=6.0):
+def crisp(vocal, sr, m=None, max_mud_cut=3.0, max_air=4.0, max_level=5.0):
     """Clear, even and airy - only as much as this vocal needs. Returns (vocal, info)."""
     m = m or measure(vocal, sr)
     info = {}
@@ -113,14 +114,14 @@ def crisp(vocal, sr, m=None, max_mud_cut=3.0, max_air=4.0, max_level=6.0):
         y = _biquad(y, sr, "peak", 320, -mud_cut, q=0.8)
     info["mud_cut_db"] = round(mud_cut, 1)
     if m["level_spread"] > SPREAD_TARGET:
-        # Leveler: phrase by phrase, bring quiet lines up and loud ones down (70% of the way to the median,
-        # at most 6 dB),
+        # Leveler: phrase by phrase, bring quiet lines up and loud ones down (half way to the median,
+        # at most 5 dB; only when the swings pass 8 dB so verse/chorus dynamics stay),
         # only where someone is singing, so breaths and bleed between lines are not pumped up.
         mono = y.mean(axis=1)
         env = db(np.sqrt(_env_follow(mono ** 2, np.exp(-1 / (0.2 * sr)), np.exp(-1 / (0.4 * sr)))))
         act = env > np.percentile(env, 99) - 20
         if act.any():
-            g = np.where(act, np.clip((np.median(env[act]) - env) * 0.7, -max_level, max_level), 0.0)
+            g = np.where(act, np.clip((np.median(env[act]) - env) * 0.5, -max_level, max_level), 0.0)
             g = signal.sosfiltfilt(signal.butter(1, 3.0, fs=sr, output="sos"), g)  # glide, never step
             y = y * (10 ** (g / 20))[:, None]
         # then a fast 3:1 compressor on the loudest 40% to keep every word forward
@@ -129,7 +130,8 @@ def crisp(vocal, sr, m=None, max_mud_cut=3.0, max_air=4.0, max_level=6.0):
         y, gr = band_compress(y, sr, ratio=3.0, attack=0.005, release=0.08, percentile=60)
         y = y * rms / max(np.sqrt(np.mean(y ** 2)), 1e-12)
         info["leveled"], info["compress_db"] = True, round(gr, 1)
-    air = float(np.clip(AIR_TARGET - m["air"], 0, max_air))
+    # No air on a vocal whose "s" sounds are already hot: the boost would only make them sting.
+    air = float(np.clip(AIR_TARGET - m["air"], 0, max_air)) if m["sib_vs_vowel"] < -4.0 else 0.0
     if air > 0.3:
         y = _biquad(y, sr, "shelf", 10000, air)
     info["air_db"] = round(air, 1)
@@ -143,7 +145,8 @@ def _split(x, sr, f):
 
 
 SIB_TARGET = -5.0    # loudest "s" moments at least this far below the loudest vowels
-HARSH_TARGET = -6.0  # average 2.5-5 kHz at least this far below the body of the voice
+HARSH_TARGET = -4.5  # average 2.5-5 kHz at least this far below the body; bright modern vocals live near here
+ESS_JUMP = 6.0  # an "s" is a burst: the top end jumps this many dB above its own level over the surrounding 0.4 s
 
 
 def _env_db(x, sr, attack, release):
@@ -166,7 +169,7 @@ def polish(vocal, sr):
     return y, {"before": before, "after": measure(y, sr), **cinfo, **tinfo}
 
 
-def _tame(vocal, sr, max_static=4.0, max_peak_cut=3.0, max_sib_cut=8.0):
+def _tame(vocal, sr, max_static=3.0, max_peak_cut=3.0, max_sib_cut=6.0):
     """De-ess and soften harshness on a vocal stem, only as much as it needs. Returns (vocal, info).
 
     1. Harshness: if the 2.5-5 kHz band averages above HARSH_TARGET relative to the body, it is turned
@@ -199,7 +202,29 @@ def _tame(vocal, sr, max_static=4.0, max_peak_cut=3.0, max_sib_cut=8.0):
     thr_s = np.percentile(body_levels[active_frames], 99.5) + SIB_TARGET
     low2, high2 = _split(y, sr, 4500)
     env_s = _env_db(_band(y.mean(axis=1), sr, *BANDS["sib"]), sr, 0.001, 0.05)
-    sib_cut = _smooth_cut(np.clip(env_s - thr_s, 0, max_sib_cut), sr, 0.05)
+    # A bright voice, or hi-hat bleed in the separated vocal, keeps the top end high all the time; that is
+    # not sibilance and ducking it dulls the whole vocal (Burning: ducked 68% of the time). Only cut where
+    # the top end bursts ESS_JUMP dB above its own running level, the way an "s" does.
+    from scipy.ndimage import percentile_filter
+    hop = int(0.01 * sr)
+    # Raw 10 ms levels, not the release-smoothed envelope, which would smear each "s" over the gap after it.
+    frames = _short_levels(_band(y, sr, *BANDS["sib"]), sr)
+    # Running level = 30th percentile of the surrounding 0.4 s, so even a stretch dense with "s" sounds (or a
+    # song that opens on one) still reads its quiet baseline rather than the bursts themselves.
+    base = np.repeat(percentile_filter(frames, 30, size=41, mode="reflect"), hop)
+    base = np.concatenate([base, np.full(len(env_s) - len(base), base[-1] if len(base) else 0.0)])
+    over = np.minimum(env_s - thr_s, env_s - (base + ESS_JUMP))
+    # Hi-hats leak into a separated vocal and are bursts too - and ducking them here would dull the beat's
+    # hats in the final mix. An "s" is strongest at 4.5-8.5 kHz; a hat sits mostly at 10-16 kHz.
+    if sr > 2 * 16500:
+        ess = _env_db(_band(y.mean(axis=1), sr, 4500, 8500), sr, 0.001, 0.05)
+        hat = _env_db(_band(y.mean(axis=1), sr, 10000, 16000), sr, 0.001, 0.05)
+        over = np.where(ess > hat + 3.0, over, 0.0)
+    # Look 5 ms ahead so the cut is already in place when an "s" starts - its onset is the part that stings.
+    from scipy.ndimage import maximum_filter1d
+    la = int(0.005 * sr)
+    want = maximum_filter1d(np.clip(over, 0, max_sib_cut), size=la + 1, origin=-(la // 2))
+    sib_cut = _smooth_cut(want, sr, 0.05)
     y = low2 + high2 * (10 ** (-sib_cut / 20))[:, None]
 
     info = {"harsh_static_db": round(static, 1),

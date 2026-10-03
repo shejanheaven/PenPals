@@ -191,6 +191,9 @@ def main(argv=None):
                 log(f"  matching to references: {', '.join(picked['names'])}")
                 if loudness is None:
                     loudness = float(np.clip(picked["lufs"], -11.0, -7.0))
+        if loudness is None and picked is None and reference is None:
+            from .master import auto_loudness
+            loudness = auto_loudness(report["before"]["lufs"])  # judged on the original render, not the remix
         log("  mastering...")
         final, minfo = master(tuned_mix, SR, target_lufs=loudness, ceiling_dbtp=args.ceiling,
                               reference=reference, target_curve=picked["curve"] if picked else None,

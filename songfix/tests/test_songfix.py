@@ -159,7 +159,7 @@ def test_master_hits_loudness_and_ceiling():
         assert abs(pyln.Meter(SR).integrated_loudness(y) - want) < 0.3
         assert true_peak(y) <= 10 ** (-1.0 / 20) + 1e-6
         assert info["steps"]
-    assert auto_loudness(-14) == -9.0 and auto_loudness(-6) == -8.0 and auto_loudness(-8.5) == -8.5
+    assert auto_loudness(-14) == -9.0 and auto_loudness(-6) == -7.0 and auto_loudness(-8.5) == -8.5
 
 
 def test_reference_picker_prefers_the_closest_sound(tmp_path):
