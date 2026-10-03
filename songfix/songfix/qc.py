@@ -39,6 +39,10 @@ def _retune_check(folder, report):
         before, after = tune.note_error(tb, mb, n, vb), tune.note_error(ta, ma, n, va)
         if after is None:
             continue
+        fb, fa = tune.note_flicker(tb, mb, n, vb), tune.note_flicker(ta, ma, n, va)
+        if fb is not None and fa is not None and fa > fb + 4:
+            worse.append(f"{n['t0']:.1f}s (pitch flickers {fb:.0f} -> {fa:.0f} cents frame to frame)")
+            continue
         if before is not None and after > before + 2 and after > 10:  # under 10 cents is still in tune
             worse.append(f"{n['t0']:.1f}s ({before:.0f} -> {after:.0f} cents)")
         elif after > (12 if n["t1"] - n["t0"] >= 0.15 else 18):  # short notes are heard and measured more loosely

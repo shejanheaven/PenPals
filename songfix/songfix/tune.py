@@ -359,6 +359,20 @@ def note_error(times, midi, p, voiced=None):
     return float(np.median(np.abs(np.convolve(cents, np.ones(k) / k, mode="valid"))))
 
 
+def note_flicker(times, midi, p, voiced=None):
+    """Median frame-to-frame pitch jump (cents) over the held middle of a note: how much it flickers."""
+    span = p["t1"] - p["t0"]
+    sel = (times >= p["t0"] + 0.2 * span) & (times <= p["t0"] + 0.9 * span) & np.isfinite(midi)
+    if voiced is not None:
+        sel &= voiced
+    seg = midi[sel]
+    if len(seg) < 4:
+        return None
+    d = np.abs(np.diff(seg)) * 100
+    d = d[d < 60]  # a jump to the neighbouring note is not flicker
+    return float(np.median(d)) if len(d) else None
+
+
 def _verify(tuned, plan, times, midi, sr, ref=0.0):
     """Corrected notes that did not end up clearly better: within 12 cents (18 for notes under
     0.15 s) and at least 2 cents closer than before."""
@@ -371,6 +385,12 @@ def _verify(tuned, plan, times, midi, sr, ref=0.0):
         after = note_error(t3, m3 - ref, p, v3)
         limit = 12 if p["t1"] - p["t0"] >= 0.15 else 18
         if after is None or after > limit or (before is not None and after > before - 2):
+            failed.append(p)
+            continue
+        # The average can look fixed while the pitch flickers frame to frame (a warbly, buzzy note):
+        # that is worse than leaving it as sung.
+        fb, fa = note_flicker(times, midi, p), note_flicker(t3, m3 - ref, p, v3)
+        if fb is not None and fa is not None and fa > fb + 4:
             failed.append(p)
     return failed
 

@@ -103,25 +103,21 @@ def chatter_share(midi, voiced):
 def smoothing_curve(times, midi, voiced, events, hop_t, glide=0.10, edge=0.015):
     """Per-frame shift (semitones) that removes warble flips and turns snaps into glides.
 
-    Warble: frames that flipped to the other note are moved back onto the main note (keeping their
-    small natural wobble). Snap: the step is replaced by a smoothstep glide asked to last `glide`
+    Warble: frames that flipped to the other note are moved back to where the main note sits. Snap: the step is replaced by a smoothstep glide asked to last `glide`
     seconds, centred on the jump (PSOLA works in whole voice cycles, so it comes out at about 50-60 ms). Edges are feathered over `edge` seconds so nothing clicks."""
     curve = np.zeros(len(times))
     midi, voiced = fill_gaps(midi, voiced)
     rnd = np.round(midi)
-    # Chatter: inside each held stretch, settle frames that jitter off the note's running median.
-    from scipy.ndimage import median_filter
-    for a, b in _runs(voiced & np.isfinite(midi)):
-        if b - a < 7:
-            continue
-        seg = midi[a:b]
-        med = median_filter(seg, size=7, mode="nearest")
-        same_note = np.round(med) == np.round(seg)
-        jitter = (np.abs(seg - med) > 0.15) & (np.abs(seg - med) < 0.9) & same_note
-        curve[a:b][jitter] = (med - seg)[jitter]
+    # Chatter on raspy notes is measured but not "steadied": the readings there are mostly noise, and
+    # shifting by them made the pitch flicker after rendering (Beggin 1:42.9: steady +17 -> +7/+27/+7...).
     for t0, t1, main, other in events["warble"]:
-        sel = (times >= t0) & (times <= t1) & voiced & (rnd == other)
-        curve[sel] = main - other
+        span = (times >= t0) & (times <= t1) & voiced
+        sel = span & (rnd == other)
+        held = span & (rnd == main)
+        # Move each flicked frame back to where the held note actually sits - by however far it really
+        # jumped. A fixed semitone overshoots a partial flick (Beggin 1:29.7: +65 cents became -35).
+        home = main + (np.median(midi[held] - main) if held.any() else 0.0)
+        curve[sel] = home - midi[sel]
     half = int(round(glide / 2 / hop_t))
     for t, n0, n1 in events["snaps"]:
         k = int(np.argmin(np.abs(times - t)))
@@ -162,8 +158,29 @@ def smooth_vocal(vocals, sr, tuning_cents=0.0, log=print):
     # Render with the bridged pitch so a glide can be drawn straight through a 1-frame tracker dropout.
     mf, vf = fill_gaps(midi, voiced)
     out = tune._render(vocals, spots, times, mf, vf, curve, sr)
-    # Re-measure: keep the change only if there is less warble/snapping than before.
+    # Re-measure every flip spot: if one ended up further from its held note than before, put that spot
+    # back exactly as it was and render again without it.
     t2, m2, v2 = tune.track_pitch(out.mean(axis=1), sr)
+    r2 = m2 - tuning_cents / 100
+    rnd = np.round(rel)
+    bad = []
+    for t0, t1, main, other in ev["warble"]:
+        span = (times >= t0) & (times <= t1) & voiced & np.isfinite(rel)
+        held = span & (rnd == main)
+        home = main + (np.median(rel[held] - main) if held.any() else 0.0)
+        span2 = span[:len(r2)] & v2[:len(span)] & np.isfinite(r2[:len(span)])
+        if span.any() and span2.any():
+            if np.median(np.abs(r2[:len(span)][span2] - home)) > np.median(np.abs(rel[span] - home)) + 0.02:
+                bad.append((t0, t1))
+    if bad:
+        for t0, t1 in bad:
+            curve[(times >= t0 - 0.05) & (times <= t1 + 0.05)] = 0.0
+        moving = np.abs(curve) > 1e-3
+        spots = [{"status": "corrected", "t0": float(times[a]), "t1": float(times[b - 1])} for a, b in _runs(moving)]
+        out = tune._render(vocals, spots, times, mf, vf, curve, sr) if spots else vocals
+        t2, m2, v2 = tune.track_pitch(out.mean(axis=1), sr)
+        info["flip_spots_put_back"] = len(bad)
+    # Keep the change only if there is less warble/snapping than before.
     ev2 = find(t2, m2 - tuning_cents / 100, v2, hop_t)
     ev2["warble"] = [w for w in ev2["warble"] if w[1] - w[0] >= 0.03]
     chat2 = chatter_share(m2 - tuning_cents / 100, v2)
