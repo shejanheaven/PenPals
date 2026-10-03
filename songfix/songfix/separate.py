@@ -99,7 +99,20 @@ def separate_vocals(mix, sr, models=("UVR-MDX-NET-Voc_FT.onnx",), log=print):
         n_fft, dim_f, dim_t, comp = MODELS[name]
         opts = ort.SessionOptions()
         opts.log_severity_level = 3
-        sess = ort.InferenceSession(_model_path(name, log), opts, providers=["CPUExecutionProvider"])
+        # Several songs at once (batch workers): give each its share of the cores and stop idle threads
+        # spinning, or the processes fight over the CPU and all run many times slower.
+        threads = int(os.environ.get("SONGFIX_THREADS", "0"))
+        if threads > 0:
+            opts.intra_op_num_threads = threads
+            opts.inter_op_num_threads = 1
+            opts.add_session_config_entry("session.intra_op.allow_spinning", "0")
+        providers = ["CPUExecutionProvider"]
+        if "DmlExecutionProvider" in ort.get_available_providers() and os.environ.get("SONGFIX_GPU", "1") != "0":
+            # Graphics card through DirectML (onnxruntime-directml): same model, many times faster.
+            opts.enable_mem_pattern = False
+            opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+            providers = ["DmlExecutionProvider", "CPUExecutionProvider"]
+        sess = ort.InferenceSession(_model_path(name, log), opts, providers=providers)
         estimates.append(_run_model(sess, x, n_fft, dim_f, dim_t, log) * comp)
     vocals = np.mean(estimates, axis=0)
     if sr != 44100:
