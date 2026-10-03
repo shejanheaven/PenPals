@@ -26,12 +26,15 @@ def _clicks(x, threshold):
 def _retune_check(folder, report):
     """Re-measure every corrected note on the tuned vocal: it must end up closer to pitch, and within 12 cents
     (18 for notes shorter than 0.15 s)."""
-    fixed = [n for n in report.get("notes", []) if n["status"] == "corrected"]
+    # Notes the do-no-harm guard put back are the original take, not fixes.
+    spans = (report.get("guard") or {}).get("spans", [])
+    fixed = [n for n in report.get("notes", []) if n["status"] == "corrected"
+             and not any(a <= n["t0"] and n["t1"] <= b for a, b in spans)]
     if not fixed or not (folder / "vocal_after.mp3").exists():
         return [], {"notes_checked": 0}
     # Measure before and after the same way, from the two vocal files the page plays.
-    tb, mb, vb = tune.track_pitch(audio_io.load(folder / "vocal_before.mp3").mean(axis=1), SR)
-    ta, ma, va = tune.track_pitch(audio_io.load(folder / "vocal_after.mp3").mean(axis=1), SR)
+    tb, mb, vb = tune.track_pitch(audio_io.load(folder / "vocal_before.mp3").mean(axis=1), SR, lowpass=True)
+    ta, ma, va = tune.track_pitch(audio_io.load(folder / "vocal_after.mp3").mean(axis=1), SR, lowpass=True)
     ref = report.get("tuning_cents", 0.0) / 100  # note targets are relative to the song's own tuning
     mb, ma = mb - ref, ma - ref
     worse, off = [], []

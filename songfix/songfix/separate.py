@@ -80,12 +80,36 @@ def _run_model(session, mix, n_fft, dim_f, dim_t, log=print):
     return np.concatenate(out, axis=1)[:, :n]
 
 
+GPU_PYTHON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".venv-gpu", "Scripts",
+                          "python.exe")
+
+
 def separate_vocals(mix, sr, models=("UVR-MDX-NET-Voc_FT.onnx",), log=print):
     """Return (vocals, instrumental), both shaped (n_samples, 2).
 
     instrumental is computed as mix - vocals so that recombining the two
     reproduces the original mix exactly.
+
+    When the GPU environment (.venv-gpu, with onnxruntime-directml) exists, the model runs there in its
+    own process: loading the DirectML build next to numba crashes numba's parallel code (an access
+    violation in librosa's tuning estimate), so the two never share a process.
     """
+    if (os.path.exists(GPU_PYTHON) and os.environ.get("SONGFIX_GPU", "1") != "0"
+            and not os.environ.get("SONGFIX_IN_GPU_WORKER")):
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            src, dst = os.path.join(tmp, "mix.npy"), os.path.join(tmp, "vocals.npy")
+            np.save(src, mix.astype(np.float32))
+            env = dict(os.environ, SONGFIX_IN_GPU_WORKER="1")
+            pkg_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            log("  separating vocals on the graphics card...")
+            r = subprocess.run([GPU_PYTHON, "-m", "songfix.separate", src, dst, str(sr), *models],
+                               cwd=pkg_root, env=env, capture_output=True, text=True)
+            if r.returncode == 0 and os.path.exists(dst):
+                vocals = np.load(dst).astype(np.float64)
+                return vocals, mix - vocals
+            log("  graphics card separation failed - using the CPU instead")
     import onnxruntime as ort
     import librosa
 
@@ -119,3 +143,12 @@ def separate_vocals(mix, sr, models=("UVR-MDX-NET-Voc_FT.onnx",), log=print):
         vocals = librosa.resample(vocals, orig_sr=44100, target_sr=sr)[:, :mix.shape[0]]
     vocals = vocals.T
     return vocals, mix - vocals
+
+
+if __name__ == "__main__":
+    # GPU worker: python -m songfix.separate mix.npy vocals.npy sr [models...]
+    import sys
+    _mix = np.load(sys.argv[1]).astype(np.float64)
+    _models = tuple(sys.argv[4:]) or ("UVR-MDX-NET-Voc_FT.onnx",)
+    _vocals, _ = separate_vocals(_mix, int(sys.argv[3]), models=_models, log=lambda *a, **k: None)
+    np.save(sys.argv[2], _vocals.astype(np.float32))

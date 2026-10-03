@@ -8,6 +8,7 @@ already in tune (within --min-cents) are left completely untouched.
 import numpy as np
 import librosa
 from scipy.ndimage import median_filter, uniform_filter1d
+from scipy import signal
 
 from .psola import shift_region
 
@@ -19,6 +20,7 @@ SCALES = {
 }
 ANALYSIS_SR = 22050
 HOP = 256
+_PITCH_LP = signal.butter(6, 4000, "lp", fs=ANALYSIS_SR, output="sos")
 
 
 def parse_key(key):
@@ -39,9 +41,16 @@ def parse_key(key):
     return NOTE_NAMES.index(root), mode
 
 
-def track_pitch(vocal_mono, sr):
-    """Return (times, midi, voiced) at HOP/ANALYSIS_SR resolution."""
+def track_pitch(vocal_mono, sr, lowpass=False):
+    """Return (times, midi, voiced) at HOP/ANALYSIS_SR resolution.
+
+    lowpass=True reads pitch from the voice below 4 kHz only, the range the ear judges pitch from. The
+    guard and QC use it to judge flicker: hi-hat bleed in a separated vocal, "s" sounds and an air boost
+    otherwise make the tracker flicker between readings (Dont Giva 0:05.2: 20 cents full-band, 10 below
+    4 kHz). The tuner keeps the full band, which segments very short notes more reliably."""
     y = librosa.resample(vocal_mono, orig_sr=sr, target_sr=ANALYSIS_SR)
+    if lowpass:
+        y = signal.sosfiltfilt(_PITCH_LP, y)
     f0, voiced, _ = librosa.pyin(y, fmin=65, fmax=1100, sr=ANALYSIS_SR,
                                  frame_length=1024, hop_length=HOP)
     times = librosa.frames_to_time(np.arange(len(f0)), sr=ANALYSIS_SR, hop_length=HOP)

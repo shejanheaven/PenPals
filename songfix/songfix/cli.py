@@ -119,6 +119,7 @@ def main(argv=None):
                     tuned = vocals
                     report["vocal_shift_cents"] = round(delta, 1)
                     log(f"  the whole vocal was {-delta:+.0f} cents off the beat - moved it {delta:+.0f} cents to match")
+            pitch_ref = vocals  # before any note-level pitch work (after the whole-vocal shift, if any)
             if not args.no_smooth:
                 # Smooth what a too-fast auto-tune left behind (note flips, instant jumps, chatter on rasp)
                 # before judging the notes. Two passes at most: every pass re-renders those spots.
@@ -157,6 +158,10 @@ def main(argv=None):
                 vocals, SR, key, min_cents=args.min_cents, strength=args.strength,
                 track={"times": times, "midi": midi, "voiced": voiced}, tuning_cents=tuning,
                 allowed_at=allowed_at, log=log)
+            # Do no harm: any note that came out more off-pitch or more flickery than it went in is put
+            # back to the original take for just that note.
+            from .guard import keep_no_worse
+            tuned, report["guard"] = keep_no_worse(pitch_ref, tuned, SR, tuning, plan=plan, log=log)
         if not args.no_polish:
             from .comfort import polish
             log("  making the vocal crisp and easy on the ears...")

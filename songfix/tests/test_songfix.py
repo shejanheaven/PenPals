@@ -280,3 +280,17 @@ def test_declip_rebuilds_flat_peaks():
     err_before = np.sqrt(np.mean((x[:, 0] - clean) ** 2))
     err_after = np.sqrt(np.mean((y[:, 0] - clean) ** 2))
     assert err_after < 0.3 * err_before
+
+
+def test_guard_puts_back_a_note_the_processing_made_worse():
+    from songfix import tune
+    from songfix.guard import keep_no_worse
+    gap = (0.15, None, None)
+    ref = sung_line([gap, (0.6, 60, lambda u, t: 0 * u), gap, (0.6, 64, lambda u, t: 0 * u), gap])
+    bad = sung_line([gap, (0.6, 60, lambda u, t: 0 * u), gap, (0.6, 64, lambda u, t: 30 + 0 * u), gap])
+    out, info = keep_no_worse(ref, bad, SR, log=lambda *a: None)
+    assert info["notes_restored"] == 1
+    times, midi, voiced = tune.track_pitch(out.mean(axis=1), SR)
+    sel = (times > 1.1) & (times < 1.4) & voiced
+    assert np.all(np.abs(midi[sel] - 64) < 0.06)  # the second note is back in tune
+    assert np.array_equal(out[: int(0.7 * SR)], bad[: int(0.7 * SR)])  # the good note was not touched
