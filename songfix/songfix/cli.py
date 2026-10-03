@@ -110,6 +110,15 @@ def main(argv=None):
                 if tinfo["chose"] != "beat":
                     log(f"  the beat's sections disagree on tuning ({tinfo['beat_sections']}); "
                         f"following the part that matches the vocal ({tuning:+.0f} cents)")
+                delta = (tuning - tinfo["vocal"] + 50) % 100 - 50
+                if abs(delta) >= 8:
+                    # The whole vocal sits off the beat (typically auto-tuned to A=440 over a pitched beat):
+                    # move it in one piece so short notes and slides come along, then tune note by note.
+                    from .retune import shift_all
+                    vocals = shift_all(vocals, SR, delta)
+                    tuned = vocals
+                    report["vocal_shift_cents"] = round(delta, 1)
+                    log(f"  the whole vocal was {-delta:+.0f} cents off the beat - moved it {delta:+.0f} cents to match")
             if not args.no_smooth:
                 # Smooth what a too-fast auto-tune left behind (note flips, instant jumps, chatter on rasp)
                 # before judging the notes. Two passes at most: every pass re-renders those spots.
@@ -208,6 +217,9 @@ def main(argv=None):
                                   f"Kept it easy on the ears: \"s\" sounds {b['sib_vs_vowel']:+.1f} -> "
                                   f"{a['sib_vs_vowel']:+.1f} dB vs the vowels, harshness {b['harsh_vs_body']:+.1f} -> "
                                   f"{a['harsh_vs_body']:+.1f} dB vs the body of the voice")
+        if report.get("vocal_shift_cents"):
+            minfo["steps"].insert(0, f"Moved the whole vocal {report['vocal_shift_cents']:+.0f} cents so it sits in "
+                                     "tune with the beat (the beat is pitched off standard A=440)")
         report["mastering"] = minfo
     report["after"] = analysis.measure(final, SR)
 

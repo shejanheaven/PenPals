@@ -178,3 +178,17 @@ def smooth_vocal(vocals, sr, tuning_cents=0.0, log=print):
     log(f"  smoothed the auto-tune: note flips {len(ev['warble'])} -> {len(ev2['warble'])}, "
         f"instant jumps {len(ev['snaps'])} -> {len(ev2['snaps'])}, chatter {chat:.1%} -> {chat2:.1%}")
     return out, info
+
+
+def shift_all(vocals, sr, cents, fade=0.1):
+    """Move the whole vocal by `cents` (PSOLA, timing unchanged): a vocal auto-tuned to A=440 over a
+    beat pitched 15 cents sharp is re-pitched in one piece, so short notes and slides move with it."""
+    from . import tune
+    times, midi, voiced = tune.track_pitch(vocals.mean(axis=1), sr)
+    mf, vf = fill_gaps(midi, voiced)
+    curve = np.full(len(times), cents / 100.0)
+    n = max(1, int(fade / (tune.HOP / tune.ANALYSIS_SR)))
+    curve[:n] *= np.linspace(0, 1, n)
+    curve[-n:] *= np.linspace(1, 0, n)
+    whole = [{"status": "corrected", "t0": float(times[0]) + 0.12, "t1": float(times[-1]) - 0.6}]
+    return tune._render(vocals, whole, times, mf, vf, curve, sr)
