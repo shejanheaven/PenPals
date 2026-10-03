@@ -102,7 +102,14 @@ def main(argv=None):
         raw_vocals = tuned = vocals
         if not args.no_tune:
             from . import tune
-            tuning = args.tuning if args.tuning is not None else analysis.estimate_tuning(beat, SR)
+            if args.tuning is not None:
+                tuning = args.tuning
+            else:
+                tuning, tinfo = analysis.estimate_song_tuning(beat, vocals, SR)
+                report["tuning_check"] = tinfo
+                if tinfo["chose"] != "beat":
+                    log(f"  the beat's sections disagree on tuning ({tinfo['beat_sections']}); "
+                        f"following the part that matches the vocal ({tuning:+.0f} cents)")
             if not args.no_smooth:
                 # Smooth what a too-fast auto-tune left behind (note flips, instant jumps, chatter on rasp)
                 # before judging the notes. Two passes at most: every pass re-renders those spots.

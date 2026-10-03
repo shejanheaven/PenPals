@@ -40,6 +40,44 @@ def _bandwidth(x, sr):
     return f[above[-1]] if len(above) else sr / 2
 
 
+def _dist(a, b):
+    return abs((a - b + 50) % 100 - 50)
+
+
+def estimate_song_tuning(beat, vocal, sr):
+    """The reference pitch to tune the vocal to: the beat's, unless the beat disagrees with itself.
+
+    Some beats carry one instrument tuned differently from the rest (Feeling You: three sections read
+    -17 cents, three read +1, and the beat's melody notes sit at -1). When the beat's sections split,
+    the vocal decides between them - it was sung and tuned to what the singer heard - so the cluster
+    of sections within 6 cents of the vocal wins if it holds at least a third of them. When the whole
+    beat agrees, the beat wins even if the vocal is off: then the whole vocal really needs moving.
+    Returns (tuning_cents, info)."""
+    vals = section_tuning(beat, sr)
+    v = estimate_tuning(vocal, sr)
+    if not vals:
+        return v, {"beat_sections": [], "vocal": round(v, 1), "chose": "vocal"}
+    beat_t = float(min(vals, key=lambda a: sum(_dist(a, b) for b in vals)))
+    near = [a for a in vals if _dist(a, v) <= 6]
+    info = {"beat_sections": [round(a) for a in vals], "vocal": round(v, 1), "beat": round(beat_t, 1)}
+    if _dist(beat_t, v) > 6 and len(near) >= len(vals) / 3:
+        info["chose"] = "beat sections that match the vocal"
+        return float(min(near, key=lambda a: sum(_dist(a, b) for b in near))), info
+    info["chose"] = "beat"
+    return beat_t, info
+
+
+def section_tuning(x, sr):
+    """Tuning (cents) of each 20 s section of the melodic part of x (drums and 808 slides removed)."""
+    from scipy import signal
+    y = librosa.resample(librosa.to_mono(x.T), orig_sr=sr, target_sr=22050)
+    y = librosa.effects.harmonic(y, margin=2)
+    y = signal.sosfiltfilt(signal.butter(4, 150, "hp", fs=22050, output="sos"), y)
+    n = 20 * 22050
+    return [librosa.estimate_tuning(y=y[i:i + n], sr=22050) * 100
+            for i in range(0, max(len(y) - n // 2, 1), n) if np.sqrt(np.mean(y[i:i + n] ** 2)) > 1e-4]
+
+
 def estimate_tuning(x, sr):
     """How far the song's reference pitch sits from A=440, in cents (-50..+50).
 
@@ -50,17 +88,10 @@ def estimate_tuning(x, sr):
     rest of the beat and the vocal sat at about 0), so the melodic part of the beat (drums removed,
     808 slides below 150 Hz removed) is measured in 20 s sections and the value the sections agree on
     most (the circular medoid - +49 and -49 cents are neighbours) is used."""
-    from scipy import signal
-    y = librosa.resample(librosa.to_mono(x.T), orig_sr=sr, target_sr=22050)
-    y = librosa.effects.harmonic(y, margin=2)
-    y = signal.sosfiltfilt(signal.butter(4, 150, "hp", fs=22050, output="sos"), y)
-    n = 20 * 22050
-    vals = [librosa.estimate_tuning(y=y[i:i + n], sr=22050) * 100
-            for i in range(0, max(len(y) - n // 2, 1), n) if np.sqrt(np.mean(y[i:i + n] ** 2)) > 1e-4]
+    vals = section_tuning(x, sr)
     if not vals:
         return 0.0
-    dist = lambda a, b: abs((a - b + 50) % 100 - 50)
-    return float(min(vals, key=lambda v: sum(dist(v, w) for w in vals)))
+    return float(min(vals, key=lambda v: sum(_dist(v, w) for w in vals)))
 
 
 def detect_key(instrumental, sr, vocal_midi=None, tuning_cents=0.0):
