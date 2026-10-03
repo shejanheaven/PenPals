@@ -6,7 +6,7 @@ import { useSyncExternalStore } from 'react'
 
 const HASH = import.meta.env.VITE_ROUTER === 'hash'
 
-export const ROUTES = ['today', 'plan', 'goals', 'reflect', 'settings']
+export const ROUTES = ['today', 'plan', 'goals', 'reflect', 'notes', 'settings']
 
 const subs = new Set()
 const emit = () => subs.forEach((fn) => fn())

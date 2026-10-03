@@ -16,6 +16,7 @@ export function initialState() {
     days: {},
     reviews: {},
     inbox: {},
+    notes: {},
     profile: { name: '', wake: '07:00', sleep: '22:30', week: null, areas: [], onboarded: false, updatedAt: now },
     settings: {
       theme: 'system',
@@ -35,6 +36,7 @@ export function initialState() {
         pauses: false,
         pauseTimes: ['11:00', '15:30'],
       },
+      spotify: { links: [], current: null }, // saved links for the music player
       updatedAt: now,
     },
   }
@@ -46,7 +48,7 @@ export function migrate(raw) {
   const out = { ...base, ...raw }
   out.profile = { ...base.profile, ...raw.profile }
   out.settings = { ...base.settings, ...raw.settings, notify: { ...base.settings.notify, ...raw.settings?.notify } }
-  for (const c of ['items', 'goals', 'checks', 'days', 'reviews', 'inbox']) out[c] = raw[c] && typeof raw[c] === 'object' ? raw[c] : {}
+  for (const c of ['items', 'goals', 'checks', 'days', 'reviews', 'inbox', 'notes']) out[c] = raw[c] && typeof raw[c] === 'object' ? raw[c] : {}
   return out
 }
 

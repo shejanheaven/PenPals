@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Bell, CalendarClock, CalendarSync, ChevronDown, Clock, Cloud, CloudOff, Copy, Download, LogOut, Mail, MessageSquareText, Monitor, Moon, Palette, Plus, RefreshCw, RotateCcw, Share, Share2, Smartphone, SquarePlus, Sunrise, Timer, Upload, User, Webhook, Wind,
+  Bell, CalendarClock, CalendarSync, ChevronDown, Clock, Cloud, CloudOff, Copy, Download, LogOut, Mail, MessageSquareText, Monitor, Music2, Moon, Palette, Plus, RefreshCw, RotateCcw, Share, Share2, Smartphone, SquarePlus, Sunrise, Timer, Upload, User, Webhook, Wind,
 } from 'lucide-react'
 import { device, getState, useStore } from '../store/store.js'
 import { addItems, replaceState, resetAll, updateProfile, updateSettings } from '../store/actions.js'
@@ -10,6 +10,7 @@ import { downloadFile, fromICS, toICS } from '../lib/ics.js'
 import { mergeStates } from '../lib/merge.js'
 import { todayKey } from '../lib/dates.js'
 import { REMINDER_OPTIONS } from '../store/defaults.js'
+import { openMusic } from '../store/ui.js'
 import { WeekEditor } from '../components/WeekEditor.jsx'
 import { defaultWeek, workBlocks } from '../lib/rhythm.js'
 import {
@@ -225,7 +226,7 @@ export default function Settings() {
         Cadence 1.0 · Your plans live on this device{cloudConfigured() ? ' and, when you sign in, in your private cloud' : ''}.
         <br />
         <span className="hide-mobile">
-          Shortcuts: <span className="kbd">N</span> new · <span className="kbd">T</span> today · <span className="kbd">1</span>–<span className="kbd">4</span> views · <span className="kbd">B</span> breathe · <span className="kbd">I</span> inbox
+          Shortcuts: <span className="kbd">N</span> new · <span className="kbd">T</span> today · <span className="kbd">1</span>–<span className="kbd">5</span> views · <span className="kbd">B</span> breathe · <span className="kbd">I</span> inbox
         </span>
       </p>
     </div>
@@ -472,6 +473,7 @@ function Connections() {
   const endpoint = captureEndpoint()
   const webhook = endpoint && token ? `${endpoint}?token=${token}` : null
   const cloudReady = cloudConfigured() && cloud.user
+  const musicCount = useStore().settings.spotify.links.length
 
   useEffect(() => {
     if (cloudReady && !token) getCaptureToken().then(setToken).catch(() => {})
@@ -488,6 +490,16 @@ function Connections() {
 
   return (
     <Group title="Connections" note="Captured things land in your Inbox, so you decide what deserves your time.">
+      <Connection icon={Music2} title="Spotify" sub={musicCount ? `${musicCount} saved ${musicCount === 1 ? 'link' : 'links'} in your music player` : 'Play your playlists inside Cadence'} status="ready">
+        <p className="small muted">
+          Paste a playlist, album, song or podcast link. On a computer the player sits in the sidebar and keeps playing as you move around; on a phone it appears on Today.
+        </p>
+        <div>
+          <button className="btn soft sm" onClick={openMusic}>
+            <Music2 size={15} /> {musicCount ? 'Manage music' : 'Add music'}
+          </button>
+        </div>
+      </Connection>
       <Connection icon={MessageSquareText} title="Text messages" sub="Turn a message into a plan" status="ready">
         <strong style={{ fontWeight: 600 }}>Any phone, no setup</strong>
         <p className="small muted">

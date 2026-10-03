@@ -154,6 +154,47 @@ export function addInbox({ text, source = 'manual', meta = {}, id = uid('in'), r
 export const resolveInbox = (id) => patchEntity('inbox', id, { deleted: true })
 export const restoreInbox = (id) => patchEntity('inbox', id, { deleted: false })
 
+// ── Notes ───────────────────────────────────────────────────────────────────
+
+export function addNote(fields = {}) {
+  const id = uid('n')
+  const t = now()
+  setState(put('notes', id, { id, title: '', body: '', pinned: false, area: null, ...fields, createdAt: t, updatedAt: t }))
+  return id
+}
+
+export const updateNote = (id, patch) => patchEntity('notes', id, patch)
+export const deleteNote = (id) => patchEntity('notes', id, { deleted: true })
+export const restoreNote = (id) => patchEntity('notes', id, { deleted: false })
+
+// ── Music (saved Spotify links) ─────────────────────────────────────────────
+
+function updateSpotify(fn) {
+  setState((s) => ({ ...s, settings: { ...s.settings, spotify: fn(s.settings.spotify), updatedAt: now() } }))
+}
+
+export function addSpotifyLink({ type, id, label }) {
+  const key = `${type}:${id}`
+  updateSpotify((sp) => ({
+    links: sp.links.some((l) => l.key === key) ? sp.links : [...sp.links, { key, type, id, label: label?.trim() || '' }],
+    current: key,
+  }))
+  return key
+}
+
+export const renameSpotifyLink = (key, label) =>
+  updateSpotify((sp) => ({ ...sp, links: sp.links.map((l) => (l.key === key ? { ...l, label } : l)) }))
+
+export const removeSpotifyLink = (key) =>
+  updateSpotify((sp) => {
+    const links = sp.links.filter((l) => l.key !== key)
+    return { links, current: sp.current === key ? (links[0]?.key ?? null) : sp.current }
+  })
+
+export const restoreSpotifyLinks = (spotify) => updateSpotify(() => spotify)
+
+export const playSpotifyLink = (key) => updateSpotify((sp) => ({ ...sp, current: key }))
+
 // ── Profile & settings ──────────────────────────────────────────────────────
 
 export function updateProfile(patch) {

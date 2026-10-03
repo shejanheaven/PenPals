@@ -6,6 +6,7 @@ import { newGoal, openBreathe, openFocus, openGoal, openInbox, openItem, openQui
 import { navigate } from '../router.js'
 import { Bar, Check, Empty, Ring, toast, useMediaQuery, useNow } from '../components/ui.jsx'
 import { ItemRow } from '../components/items.jsx'
+import { SpotifyPlayer } from '../components/Music.jsx'
 import { addDays, fmtDate, fmtDuration, fmtRange, fmtRelative, fmtTime, greeting, nowMinutes, toKey, toMinutes } from '../lib/dates.js'
 import { itemsOn } from '../lib/recurrence.js'
 import { checkinTimes } from '../lib/rhythm.js'
@@ -45,6 +46,7 @@ export default function Today() {
   const evening = mins >= Math.min(toMinutes(checkinTimes(state, today).evening ?? '21:00') - 120, 18 * 60)
   const [quote, author] = QUOTES[hash(today) % QUOTES.length]
   const wide = useMediaQuery('(min-width: 1200px)')
+  const desktop = useMediaQuery('(min-width: 900px)') // computers have the player in the sidebar
 
   const blocks = {
     header: (
@@ -261,6 +263,15 @@ export default function Today() {
         )}
       </>
     ),
+    music: (
+      <>
+        {!desktop && state.settings.spotify.links.length > 0 && (
+          <section className="section">
+            <SpotifyPlayer showEmpty={false} />
+          </section>
+        )}
+      </>
+    ),
     quote: (
       <>
         <figure className="section" style={{ margin: '34px 4px 8px', textAlign: 'center' }}>
@@ -309,6 +320,7 @@ export default function Today() {
       {blocks.carried}
       {blocks.week}
       {blocks.evening}
+      {blocks.music}
       {blocks.quote}
     </div>
   )

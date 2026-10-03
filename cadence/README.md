@@ -31,6 +31,14 @@ ones, which support yearly ones. You can also **let a goal go**, without guilt.
 **Reflect**: daily mood, energy, three good things and a journal; weekly, monthly and
 yearly reviews with charts (plans kept, mood, where your energy went) and review prompts.
 
+**Notes**: a place for loose thoughts: lists, ideas, what someone said. Search them, colour them by
+area of life, pin the important ones to the top, and turn any note into something on your plan.
+
+**Music**: save your Spotify playlists, albums, songs or podcasts (Settings → Connections → Spotify, or
+*Add music* in the sidebar). On a computer the player sits in the sidebar and keeps playing while you move
+between pages; on a phone it appears on Today. Whole songs play if you're signed in to Spotify in that
+browser, 30-second previews otherwise.
+
 **Mindfulness built in**: a **Breathe** exercise (box, 4·7·8, even), a **Focus** mode that
 keeps the screen awake and chimes at the end, optional mindful-pause nudges, and language
 that's encouraging rather than naggy.
@@ -53,7 +61,7 @@ anything vague waits for you to check it. Voice uses your browser's built-in spe
 dictation works in the same box.
 
 Also: undo on everything, light/dark themes, six accent colours, 24-hour clock, Monday/Sunday
-week start, keyboard shortcuts on desktop (`N` new, `V` speak, `T` today, `1`–`4` views, `B` breathe, `I` inbox).
+week start, keyboard shortcuts on desktop (`N` new, `V` speak, `T` today, `1`–`5` views, `B` breathe, `I` inbox).
 
 ---
 

@@ -2782,3 +2782,141 @@ a {
     display: none;
   }
 }
+
+/* ── Notes ─────────────────────────────────────────────────────────────── */
+
+.notes-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 8px 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.notes-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.notes-search .input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.notes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.note-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-height: 96px;
+  padding: 14px 16px 12px;
+  text-align: left;
+  border-top: 3px solid var(--ev, var(--area-none));
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s var(--ease);
+}
+.note-card:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+.note-card-title {
+  font-family: var(--font-serif);
+  font-variation-settings: 'SOFT' 100;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.note-card-body {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  color: var(--text-2);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.note-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.textarea.note-body {
+  min-height: max(220px, 38dvh);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+/* ── Music (Spotify) ───────────────────────────────────────────────────── */
+
+.music {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sidebar .music {
+  margin: 0 0 8px;
+}
+.music-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px 0 6px;
+  min-height: 30px;
+}
+.music-select {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  appearance: none;
+  outline: none;
+}
+select.music-select {
+  cursor: pointer;
+}
+select.music-select:hover,
+select.music-select:focus-visible {
+  color: var(--text);
+}
+.music-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.icon-btn.music-current {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.music-add {
+  margin-bottom: 4px;
+}
+
+@media (min-width: 900px) {
+  .sidebar {
+    overflow-y: auto;
+  }
+}

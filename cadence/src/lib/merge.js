@@ -2,7 +2,7 @@
 // carries `updatedAt`, deletions are kept as tombstones, and the newer
 // version of each entity wins, so edits made on different devices combine.
 
-export const COLLECTIONS = ['items', 'goals', 'checks', 'days', 'reviews', 'inbox']
+export const COLLECTIONS = ['items', 'goals', 'checks', 'days', 'reviews', 'inbox', 'notes']
 const SINGLETONS = ['profile', 'settings']
 const TOMBSTONE_TTL = 60 * 86400e3
 

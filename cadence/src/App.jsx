@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { CalendarDays, Mic, Feather, Inbox as InboxIcon, Plus, Settings as SettingsIcon, Sun, Target, Wind } from 'lucide-react'
+import { CalendarDays, Mic, Feather, Inbox as InboxIcon, NotebookPen, Plus, Settings as SettingsIcon, Sun, Target, Wind } from 'lucide-react'
 import { useStore } from './store/store.js'
 import { setCheck } from './store/actions.js'
 import { closeLayer, openBreathe, openFocus, openInbox, openItem, openQuickAdd, openVoice, useUI } from './store/ui.js'
@@ -7,7 +7,8 @@ import { voiceSupported } from './services/voice.js'
 import { navigate, useRoute } from './router.js'
 import { applyTheme } from './lib/theme.js'
 import { setClock24 } from './lib/dates.js'
-import { Toasts, banner, toast } from './components/ui.jsx'
+import { Toasts, banner, toast, useMediaQuery } from './components/ui.jsx'
+import { MusicSheet, SpotifyPlayer } from './components/Music.jsx'
 import { Logo } from './components/Logo.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
 import { ItemSheet, QuickAdd } from './components/items.jsx'
@@ -17,6 +18,7 @@ import Today from './views/Today.jsx'
 import Plan from './views/Plan.jsx'
 import Goals, { GoalSheet } from './views/Goals.jsx'
 import Reflect from './views/Reflect.jsx'
+import Notes, { NoteSheet } from './views/Notes.jsx'
 import Settings from './views/Settings.jsx'
 import Onboarding from './views/Onboarding.jsx'
 import { deliver, onServiceWorkerMessage, setForegroundHandler } from './services/notifications.js'
@@ -27,9 +29,10 @@ const NAV = [
   { id: 'plan', label: 'Plan', icon: CalendarDays },
   { id: 'goals', label: 'Goals', icon: Target },
   { id: 'reflect', label: 'Reflect', icon: Feather },
+  { id: 'notes', label: 'Notes', icon: NotebookPen },
 ]
 
-const VIEWS = { today: Today, plan: Plan, goals: Goals, reflect: Reflect, settings: Settings }
+const VIEWS = { today: Today, plan: Plan, goals: Goals, reflect: Reflect, notes: Notes, settings: Settings }
 
 // Act on instructions from a launch URL, a notification tap or a share.
 function handleLaunch(params) {
@@ -81,6 +84,8 @@ function LayerHost() {
       {L.item && <ItemSheet key={L.item.key} {...props('item')} />}
       {L.goal && <GoalSheet key={L.goal.key} {...props('goal')} />}
       {L.inbox && <InboxSheet key="inbox" {...props('inbox')} />}
+      {L.note && <NoteSheet key={L.note.key} {...props('note')} />}
+      {L.music && <MusicSheet key="music" {...props('music')} />}
       {L.focus && <Focus key={L.focus.key} {...props('focus')} />}
       {L.breathe && <Breathe key="breathe" {...props('breathe')} />}
     </>
@@ -107,6 +112,7 @@ function useShortcuts(enabled) {
         2: () => navigate('plan'),
         3: () => navigate('goals'),
         4: () => navigate('reflect'),
+        5: () => navigate('notes'),
       }
       if (map[k]) {
         e.preventDefault()
@@ -123,6 +129,9 @@ export default function App({ launch }) {
   const route = useRoute()
   const { theme, accent, clock24 } = state.settings
   const onboarded = state.profile.onboarded
+  // The sidebar only exists on larger screens; the player lives there so music
+  // keeps playing while you move between pages.
+  const desktop = useMediaQuery('(min-width: 900px)')
   setClock24(clock24)
 
   useEffect(() => {
@@ -182,6 +191,7 @@ export default function App({ launch }) {
           <InboxIcon size={18} /> Inbox {inboxCount > 0 && <span className="badge">{inboxCount}</span>}
         </button>
         <div className="side-foot">
+          {desktop && <SpotifyPlayer />}
           {voiceSupported() && (
             <button className="side-link" onClick={openVoice}>
               <Mic size={18} /> Speak <span className="kbd" style={{ marginLeft: 'auto' }}>V</span>
