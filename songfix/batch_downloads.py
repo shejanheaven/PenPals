@@ -103,7 +103,9 @@ def quality_check(out, src, log):
         log.write("    quality check crashed:\n" + traceback.format_exc() + "\n")
 
 
-def run(plan_path, root):
+def run(plan_path, root, worker=0, workers=1):
+    """Process the plan; with workers > 1, this process takes every `workers`-th song starting at `worker`,
+    so several processes can share one plan and one gallery (pass "worker workers" after the root)."""
     from ctypes import wintypes
     k32 = ctypes.windll.kernel32
     k32.GetCurrentProcess.restype = wintypes.HANDLE
@@ -116,6 +118,8 @@ def run(plan_path, root):
     log = open(root / "batch.log", "a", encoding="utf-8", buffering=1)
     gallery(root, plan)
     for i, e in enumerate(plan, 1):
+        if (i - 1) % workers != worker:
+            continue
         name = title(e["song"])
         out = root / "songs" / name
         src = Path(e["source"])
@@ -141,4 +145,4 @@ def run(plan_path, root):
 
 
 if __name__ == "__main__":
-    run(sys.argv[1], sys.argv[2])
+    run(sys.argv[1], sys.argv[2], *(int(a) for a in sys.argv[3:5]))

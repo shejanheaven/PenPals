@@ -390,7 +390,7 @@ def _verify(tuned, plan, times, midi, sr, ref=0.0):
         # The average can look fixed while the pitch flickers frame to frame (a warbly, buzzy note):
         # that is worse than leaving it as sung.
         fb, fa = note_flicker(times, midi, p), note_flicker(t3, m3 - ref, p, v3)
-        if fb is not None and fa is not None and fa > fb + 4:
+        if fb is not None and fa is not None and fa > fb + 4 and fa > 8:  # under 8 cents is inaudible
             failed.append(p)
     return failed
 

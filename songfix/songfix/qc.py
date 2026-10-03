@@ -40,7 +40,7 @@ def _retune_check(folder, report):
         if after is None:
             continue
         fb, fa = tune.note_flicker(tb, mb, n, vb), tune.note_flicker(ta, ma, n, va)
-        if fb is not None and fa is not None and fa > fb + 4:
+        if fb is not None and fa is not None and fa > fb + 4 and fa > 8:  # under 8 cents is inaudible
             worse.append(f"{n['t0']:.1f}s (pitch flickers {fb:.0f} -> {fa:.0f} cents frame to frame)")
             continue
         if before is not None and after > before + 2 and after > 10:  # under 10 cents is still in tune
