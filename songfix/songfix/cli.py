@@ -177,6 +177,18 @@ def main(argv=None):
                 log(f"  vocal was {rel:+.1f} dB vs the beat - moved {lift:+.1f} dB so it sits on top")
             pinfo["vocal_vs_beat_db"], pinfo["vocal_lift_db"] = round(rel, 1), round(lift, 1)
             report["vocal_polish"] = pinfo
+            if not args.no_tune:
+                # Do no harm, last word: compare the finished vocal with the original take put through the same
+                # polish and lift, and swap back any note that still came out worse. Both sides carry the same
+                # tone, so a swapped note matches its neighbours.
+                from .guard import keep_no_worse
+                ref_pol, _ = polish(pitch_ref, SR)
+                ref_pol = ref_pol * 10 ** (lift / 20)
+                tuned, g2 = keep_no_worse(ref_pol, tuned, SR, tuning, plan=plan, log=log)
+                g = report.setdefault("guard", {"notes_restored": 0, "where": [], "spans": []})
+                g["notes_restored"] += g2["notes_restored"]
+                g["where"] += g2["where"]
+                g["spans"] += g2["spans"]
         tuned = tuned * 10 ** (args.vocal_level / 20)
         tuned_mix = beat + tuned
         if not args.no_stems:
@@ -204,6 +216,23 @@ def main(argv=None):
                               reference=reference, target_curve=picked["curve"] if picked else None,
                               eq_amount=0.7 if (picked or reference is not None) else args.eq_amount,
                               glue=not args.no_glue, log=log)
+        # Never duller than the original: if the master lost top end against the mids, give it back and master
+        # once more (Better Days, Just Friends: about 2 dB darker).
+        from .master import band_spectrum
+        c, lo = band_spectrum(original, SR)
+        _, lm = band_spectrum(final, SR)
+        top, mids = (c >= 6000) & (c <= 14000), (c >= 500) & (c <= 2000)
+        change = float(np.mean(lm[top] - lo[top]) - np.mean(lm[mids] - lo[mids]))
+        if change < -1.2:
+            from .comfort import _biquad
+            fix = min(-change, 3.0)
+            log(f"  the master came out {-change:.1f} dB darker up top than the original - giving that back")
+            final, minfo = master(_biquad(tuned_mix, SR, "shelf", 6000, fix), SR, target_lufs=loudness,
+                                  ceiling_dbtp=args.ceiling, reference=reference,
+                                  target_curve=picked["curve"] if picked else None,
+                                  eq_amount=0.7 if (picked or reference is not None) else args.eq_amount,
+                                  glue=not args.no_glue, log=log)
+            minfo["steps"].append(f"Brought back {fix:.1f} dB of top end so the master is as bright as your original")
         if picked:
             minfo["references"] = picked["names"]
         pinfo = report.get("vocal_polish")
