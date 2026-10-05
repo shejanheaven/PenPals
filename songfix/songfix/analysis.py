@@ -53,8 +53,12 @@ def estimate_song_tuning(beat, vocal, sr):
     of sections within 6 cents of the vocal wins if it holds at least a third of them. When the whole
     beat agrees, the beat wins even if the vocal is off: then the whole vocal really needs moving.
     Returns (tuning_cents, info)."""
-    vals = section_tuning(beat, sr)
+    vals, starts = section_tuning(beat, sr, with_starts=True)
     v = estimate_tuning(vocal, sr)
+    split = _tuning_parts(vals, starts, vocal, sr)
+    if split is not None:
+        return split, {"beat_sections": [round(a) for a in vals], "vocal": round(v, 1),
+                       "parts": split.as_dict(), "chose": "beat changes tuning partway; the vocal follows it"}
     if not vals:
         return v, {"beat_sections": [], "vocal": round(v, 1), "chose": "vocal"}
     beat_t = float(min(vals, key=lambda a: sum(_dist(a, b) for b in vals)))
@@ -67,15 +71,46 @@ def estimate_song_tuning(beat, vocal, sr):
     return beat_t, info
 
 
-def section_tuning(x, sr):
+def _tuning_parts(vals, starts, vocal, sr, step=8.0, jump=12.0, sec=20.0):
+    """A Tuning with one value per part when the beat really switches tuning partway, else None.
+
+    Sections within `step` cents of their neighbour form a part; parts of a single section are blips and
+    are dropped (Wat 2 Do's +18 intro). It only counts as a switch when neighbouring parts differ by more
+    than `jump` cents AND the vocal measured over each part follows that part's tuning: if it doesn't,
+    one instrument is more likely fooling the reading (Feeling You), and the usual rule decides."""
+    if len(vals) < 4:
+        return None
+    parts = [[0]]
+    for i in range(1, len(vals)):
+        if _dist(vals[i], vals[parts[-1][-1]]) <= step:
+            parts[-1].append(i)
+        else:
+            parts.append([i])
+    parts = [p for p in parts if len(p) >= 2]
+    if len(parts) < 2:
+        return None
+    med = [float(np.median([vals[i] for i in p])) for p in parts]
+    if all(_dist(a, b) <= jump for a, b in zip(med, med[1:])):
+        return None
+    for p, m in zip(parts, med):
+        a, b = int(starts[p[0]] * sr), int((starts[p[-1]] + sec) * sr)
+        if _dist(estimate_tuning(vocal[a:b], sr), m) > step:
+            return None
+    from .tune import Tuning
+    cut = [0.0] + [float(starts[p[0]]) for p in parts[1:]]
+    return Tuning(cut, med)
+
+
+def section_tuning(x, sr, with_starts=False):
     """Tuning (cents) of each 20 s section of the melodic part of x (drums and 808 slides removed)."""
     from scipy import signal
     y = librosa.resample(librosa.to_mono(x.T), orig_sr=sr, target_sr=22050)
     y = librosa.effects.harmonic(y, margin=2)
     y = signal.sosfiltfilt(signal.butter(4, 150, "hp", fs=22050, output="sos"), y)
     n = 20 * 22050
-    return [librosa.estimate_tuning(y=y[i:i + n], sr=22050) * 100
-            for i in range(0, max(len(y) - n // 2, 1), n) if np.sqrt(np.mean(y[i:i + n] ** 2)) > 1e-4]
+    idx = [i for i in range(0, max(len(y) - n // 2, 1), n) if np.sqrt(np.mean(y[i:i + n] ** 2)) > 1e-4]
+    vals = [librosa.estimate_tuning(y=y[i:i + n], sr=22050) * 100 for i in idx]
+    return (vals, [i / 22050 for i in idx]) if with_starts else vals
 
 
 def estimate_tuning(x, sr):

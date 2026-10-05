@@ -144,7 +144,7 @@ def smooth_vocal(vocals, sr, tuning_cents=0.0, log=print):
     from . import tune
     hop_t = tune.HOP / tune.ANALYSIS_SR
     times, midi, voiced = tune.track_pitch(vocals.mean(axis=1), sr)
-    rel = midi - tuning_cents / 100
+    rel = midi - tune.cents_at(tuning_cents, times) / 100
     ev = find(times, rel, voiced, hop_t)
     ev["warble"] = [w for w in ev["warble"] if w[1] - w[0] >= 0.03]  # 1-2 frame blips are tracker noise
     chat = chatter_share(rel, voiced)
@@ -161,7 +161,7 @@ def smooth_vocal(vocals, sr, tuning_cents=0.0, log=print):
     # Re-measure every flip spot: if one ended up further from its held note than before, put that spot
     # back exactly as it was and render again without it.
     t2, m2, v2 = tune.track_pitch(out.mean(axis=1), sr)
-    r2 = m2 - tuning_cents / 100
+    r2 = m2 - tune.cents_at(tuning_cents, t2) / 100
     rnd = np.round(rel)
     bad = []
     for t0, t1, main, other in ev["warble"]:
@@ -181,9 +181,9 @@ def smooth_vocal(vocals, sr, tuning_cents=0.0, log=print):
         t2, m2, v2 = tune.track_pitch(out.mean(axis=1), sr)
         info["flip_spots_put_back"] = len(bad)
     # Keep the change only if there is less warble/snapping than before.
-    ev2 = find(t2, m2 - tuning_cents / 100, v2, hop_t)
+    ev2 = find(t2, m2 - tune.cents_at(tuning_cents, t2) / 100, v2, hop_t)
     ev2["warble"] = [w for w in ev2["warble"] if w[1] - w[0] >= 0.03]
-    chat2 = chatter_share(m2 - tuning_cents / 100, v2)
+    chat2 = chatter_share(m2 - tune.cents_at(tuning_cents, t2) / 100, v2)
     info.update({"warble_after": len(ev2["warble"]), "snaps_after": len(ev2["snaps"]),
                  "chatter_after_pct": round(chat2 * 100, 1)})
     # 0.3 points of chatter is within the tracker's noise; more than that means the render got rougher.
@@ -203,7 +203,7 @@ def shift_all(vocals, sr, cents, fade=0.1):
     from . import tune
     times, midi, voiced = tune.track_pitch(vocals.mean(axis=1), sr)
     mf, vf = fill_gaps(midi, voiced)
-    curve = np.full(len(times), cents / 100.0)
+    curve = tune.cents_at(cents, times) / 100.0
     n = max(1, int(fade / (tune.HOP / tune.ANALYSIS_SR)))
     curve[:n] *= np.linspace(0, 1, n)
     curve[-n:] *= np.linspace(1, 0, n)

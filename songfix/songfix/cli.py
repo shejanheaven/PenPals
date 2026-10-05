@@ -110,7 +110,10 @@ def main(argv=None):
                 if tinfo["chose"] != "beat":
                     log(f"  the beat's sections disagree on tuning ({tinfo['beat_sections']}); "
                         f"following the part that matches the vocal ({tuning:+.0f} cents)")
-                delta = (tuning - tinfo["vocal"] + 50) % 100 - 50
+                if hasattr(tuning, "at"):
+                    log(f"  the beat changes tuning partway ({tinfo['parts']['cents']} cents from "
+                        f"{tinfo['parts']['starts']} s) - each part is tuned to its own reference")
+                delta = 0.0 if hasattr(tuning, "at") else (tuning - tinfo["vocal"] + 50) % 100 - 50
                 if abs(delta) >= 8:
                     # The whole vocal sits off the beat (typically auto-tuned to A=440 over a pitched beat):
                     # move it in one piece so short notes and slides come along, then tune note by note.
@@ -135,14 +138,16 @@ def main(argv=None):
                 tuned = vocals
             log("  tracking vocal pitch...")
             times, midi, voiced = tune.track_pitch(vocals.mean(axis=1), SR)
-            report["tuning_cents"] = round(tuning, 1)
-            if abs(tuning) >= 5:
+            report["tuning_cents"] = round(float(tuning), 1)
+            if hasattr(tuning, "as_dict"):
+                report["tuning_map"] = tuning.as_dict()
+            elif abs(tuning) >= 5:
                 log(f"  the beat is tuned {tuning:+.0f} cents from A=440 - the vocal is tuned to the beat")
             key, allowed_at = args.key, None
             if key == "auto":
-                rel = midi - tuning / 100
-                chroma = analysis.beat_chroma(beat, SR, tuning)
-                key, ranked, cover = analysis.detect_scale(beat, SR, rel, tuning, chroma=chroma[1])
+                rel = midi - tune.cents_at(tuning, times) / 100
+                chroma = analysis.beat_chroma(beat, SR, float(tuning))
+                key, ranked, cover = analysis.detect_scale(beat, SR, rel, float(tuning), chroma=chroma[1])
                 allowed_at, sections = analysis.scale_map(times, rel, chroma)
                 report["key_candidates"], report["key_sections"] = ranked, sections
                 log(f"  detected key: {key} (same notes as {analysis.relative_key(key)}); "

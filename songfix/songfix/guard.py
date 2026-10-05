@@ -22,9 +22,9 @@ def keep_no_worse(reference, processed, sr, tuning_cents=0.0, plan=None, fade=0.
     is the intended starting point). Both must be the same length.
     plan: the tuner's notes; every note it changed is checked with its own boundaries too, so a tuned note
     can't slip past because the guard split the take differently (Dont Giva 0:05.2)."""
-    ref = tuning_cents / 100
     t0s, m0, v0 = tune.track_pitch(reference.mean(axis=1), sr, lowpass=True)
     t1s, m1, v1 = tune.track_pitch(processed.mean(axis=1), sr, lowpass=True)
+    ref = tune.cents_at(tuning_cents, t0s) / 100  # same frame grid for both (same length)
     notes = [{"t0": nt["t0"], "t1": nt["t1"], "center": nt["center"]} for nt in tune.find_notes(t0s, m0 - ref, v0)]
     for p in plan or []:
         if p.get("status") == "corrected":

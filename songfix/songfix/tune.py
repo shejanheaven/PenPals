@@ -23,6 +23,36 @@ HOP = 256
 _PITCH_LP = signal.butter(6, 4000, "lp", fs=ANALYSIS_SR, output="sos")
 
 
+class Tuning:
+    """A song's reference pitch over time, in cents from A=440: one value per part of the song.
+
+    Most songs have one tuning; some beats switch partway (Dance The Night Away: +35 cents for the first
+    2:20, then -3). float(t) gives the tuning of the longest part."""
+
+    def __init__(self, starts, cents):
+        self.starts = np.asarray(starts, float)
+        self.cents = np.asarray(cents, float)
+
+    def at(self, times):
+        i = np.clip(np.searchsorted(self.starts, np.asarray(times, float), side="right") - 1, 0, len(self.cents) - 1)
+        return self.cents[i]
+
+    def __float__(self):
+        ends = np.append(self.starts[1:], np.inf)
+        lengths = np.minimum(ends, self.starts[-1] + 60) - self.starts
+        return float(self.cents[int(np.argmax(lengths))])
+
+    def as_dict(self):
+        return {"starts": [round(float(x), 2) for x in self.starts], "cents": [round(float(x), 1) for x in self.cents]}
+
+
+def cents_at(tuning, times):
+    """Reference pitch (cents) at each of `times`, for a plain number or a Tuning."""
+    if hasattr(tuning, "at"):
+        return tuning.at(times)
+    return np.full(len(times), float(tuning))
+
+
 def parse_key(key):
     """'C minor', 'F# major', 'Am', 'chromatic' -> (tonic_pc, scale_name)."""
     k = key.strip().replace("♯", "#").replace("♭", "b")
@@ -261,7 +291,7 @@ def correct_vocals(vocals, sr, key, min_cents=10, strength=1.0, track=None, tuni
     else:
         times, midi, voiced = track["times"], track["midi"], track["voiced"]
     tonic, scale = parse_key(key)
-    ref = tuning_cents / 100
+    ref = cents_at(tuning_cents, times) / 100  # per frame: some beats change tuning partway
     rel = midi - ref  # pitch relative to the song's own tuning
     notes = find_notes(times, rel, voiced)
     plan = plan_corrections(notes, tonic, scale, min_cents=min_cents, strength=strength, midi=rel,
@@ -315,7 +345,7 @@ def _skip_harmonies(plan, mono, sr, tuning_cents, ratio=0.6):
     if not todo:
         return
     y = librosa.resample(mono, orig_sr=sr, target_sr=ANALYSIS_SR)
-    c = librosa.feature.chroma_cqt(y=y, sr=ANALYSIS_SR, hop_length=HOP, tuning=tuning_cents / 100)
+    c = librosa.feature.chroma_cqt(y=y, sr=ANALYSIS_SR, hop_length=HOP, tuning=float(tuning_cents) / 100)
     ct = librosa.frames_to_time(np.arange(c.shape[1]), sr=ANALYSIS_SR, hop_length=HOP)
     for p in todo:
         sel = (ct >= p["t0"]) & (ct <= p["t1"])
