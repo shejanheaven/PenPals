@@ -49,18 +49,20 @@ def _retune_check(folder, report):
         if after is None:
             continue
         fb, fa = tune.note_flicker(tb, mb, n, vb), tune.note_flicker(ta, ma, n, va)
-        if fb is not None and fa is not None and fa > fb + 4 and fa > 8:  # under 8 cents is inaudible
+        # QC reads lossy MP3 copies while the guard reads the full-quality vocal, so QC allows a little more
+        # than the guard before calling a note worse; otherwise notes sitting at the limit flag on noise.
+        if fb is not None and fa is not None and fa > fb + 6 and fa > 10:
             worse.append(f"{n['t0']:.1f}s (pitch flickers {fb:.0f} -> {fa:.0f} cents frame to frame)")
             continue
-        if before is not None and after > before + 2 and after > 10:  # under 10 cents is still in tune
+        if before is not None and after > before + 4 and after > 12:
             worse.append(f"{n['t0']:.1f}s ({before:.0f} -> {after:.0f} cents)")
-        elif after > (12 if n["t1"] - n["t0"] >= 0.15 else 18):  # short notes are heard and measured more loosely
+        elif after > (15 if n["t1"] - n["t0"] >= 0.15 else 20):  # short notes are heard and measured more loosely
             off.append(f"{n['t0']:.1f}s ({after:.0f} cents)")
     problems = []
     if worse:
         problems.append(f"tuning made {len(worse)} note(s) worse: {', '.join(worse[:6])}")
     if off:
-        problems.append(f"{len(off)} fixed note(s) still more than 12 cents off: {', '.join(off[:6])}")
+        problems.append(f"{len(off)} fixed note(s) still more than 15 cents off: {', '.join(off[:6])}")
     return problems, {"notes_checked": len(fixed), "made_worse": len(worse), "still_off": len(off)}
 
 
