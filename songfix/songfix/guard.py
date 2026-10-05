@@ -35,7 +35,7 @@ def keep_no_worse(reference, processed, sr, tuning_cents=0.0, plan=None, fade=0.
     ramp = np.linspace(0.0, 1.0, nf)
     restored = []
     for nt in notes:
-        if nt["t1"] - nt["t0"] < 0.1:
+        if nt["t1"] - nt["t0"] < 0.06:  # as short as QC looks: a 0.09 s note slipped past at 0.1 (Regret It 0:25)
             continue
         target = int(round(nt["center"]))
         e0, f0 = _note_stats(t0s, m0 - ref, v0, nt["t0"], nt["t1"], target)
