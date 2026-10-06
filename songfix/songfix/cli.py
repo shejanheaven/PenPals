@@ -107,7 +107,7 @@ def main(argv=None):
             else:
                 tuning, tinfo = analysis.estimate_song_tuning(beat, vocals, SR)
                 report["tuning_check"] = tinfo
-                if tinfo["chose"] != "beat":
+                if tinfo["chose"] != "beat" and not hasattr(tuning, "at"):
                     log(f"  the beat's sections disagree on tuning ({tinfo['beat_sections']}); "
                         f"following the part that matches the vocal ({tuning:+.0f} cents)")
                 if hasattr(tuning, "at"):
